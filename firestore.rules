@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ★ 管理者の Google アカウント。firebase-config.js の NIWAKA_ADMIN_EMAILS と同じものを書く
+    function admins() {
+      return [
+        // 'example@gmail.com',
+      ];
+    }
+    function authed() { return request.auth != null; }
+    function isAdmin() {
+      return authed()
+        && request.auth.token.email != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in admins();
+    }
+
+    // チームの合言葉（URL の ?team=…）を知っている人だけが、そのチームを読み書きできる。
+    // teams の一覧は誰も取得できないので、合言葉を知らない人には中身が見えない。
+    match /teams/{team} {
+      function okTeam() { return authed() && team.size() >= 8; }
+
+      // チーム設定（今の年度・メンバーが非表示にできるか）は管理者だけが変えられる
+      allow read: if okTeam();
+      allow write: if okTeam() && isAdmin();
+
+      match /houses/{house} {
+        function d() { return request.resource.data; }
+        function valid() {
+          return d().lat is number && d().lng is number
+            && d().name is string && d().name.size() <= 80
+            && d().get('memo', '') is string && d().get('memo', '').size() <= 500
+            && d().get('years', {}) is map;
+        }
+        function teamAllowsHide() {
+          let t = /databases/$(database)/documents/teams/$(team);
+          return !exists(t) || get(t).data.get('allowHide', true) == true;
+        }
+        // 非表示の切り替え：元に戻すのは管理者だけ。非表示にするのは、許可されていればメンバーも可
+        function hideChangeOk() {
+          let was = resource.data.get('hidden', false);
+          let now = d().get('hidden', false);
+          return was == now || isAdmin() || (was == false && now == true && teamAllowsHide());
+        }
+
+        allow read: if okTeam();
+        allow create: if okTeam() && valid() && d().get('hidden', false) == false;
+        allow update: if okTeam() && valid() && hideChangeOk();
+        // 完全に消すのは管理者だけ（アプリからは使わない。Firebase コンソールでの整理用）
+        allow delete: if okTeam() && isAdmin();
+      }
+
+      // メンバーの現在地：チーム内なら誰でも見られる。書き込み・削除は本人だけ。
+      match /members/{uid} {
+        allow read: if okTeam();
+        allow delete: if okTeam() && request.auth.uid == uid;
+        allow create, update: if okTeam() && request.auth.uid == uid
+          && request.resource.data.lat is number && request.resource.data.lng is number
+          && request.resource.data.name is string && request.resource.data.name.size() <= 30;
+      }
+    }
+  }
+}

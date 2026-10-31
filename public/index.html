@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f3a5f">
+<title>俄留マップ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="top">
+      <div class="title">
+        <h1>俄留マップ<small id="teamLabel"></small></h1>
+        <select id="yearSel" class="year-sel" aria-label="表示する年度"></select>
+      </div>
+      <div class="top-r">
+        <button class="link" id="shareBtn" hidden>招待</button>
+        <button class="icon-btn" id="adminBtn" aria-label="管理" title="管理"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.5-2-3.5-2.4 1a7.5 7.5 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.5 7.5 0 0 0 7 6.5l-2.4-1-2 3.5 2 1.5a7.6 7.6 0 0 0 0 3l-2 1.5 2 3.5 2.4-1a7.5 7.5 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.5 7.5 0 0 0 2.6-1.5l2.4 1 2-3.5-2-1.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
+        <div class="tabs" role="group" aria-label="表示切替">
+          <button id="tabMap" aria-pressed="true">地図</button>
+          <button id="tabList" aria-pressed="false">一覧</button>
+        </div>
+      </div>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="past" id="pastBanner" hidden><span><b id="pastYear"></b>年の記録を表示中（見るだけ）</span><button class="link" id="backToNow">今年に戻る</button></div>
+    <button class="notice" id="notice" hidden></button>
+    <div class="bar">
+      <div class="progress" id="progress" aria-hidden="true"></div>
+      <span class="sync" id="sync" data-state="local">準備中</span>
+    </div>
+  </header>
+
+  <main>
+    <div id="map" class="map"></div>
+    <div class="hint" id="hint" hidden>
+      <span>家の場所をタップ</span>
+      <button class="hint-btn" id="addHere">今いる場所に追加</button>
+    </div>
+    <div class="fab" id="fab">
+      <button class="btn round share-loc" id="shareLocBtn" aria-pressed="false" aria-label="自分の位置をチームに共有" title="位置を共有する">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="9" cy="8" r="3.2" fill="currentColor"/><path d="M3 19c.6-3.4 3-5.4 6-5.4s5.4 2 6 5.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16.5 6.5a4 4 0 0 1 0 5M19 4a7.5 7.5 0 0 1 0 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span class="badge" id="memCount" hidden></span>
+      </button>
+      <button class="btn round" id="locBtn" aria-label="現在地を表示" title="現在地">◎</button>
+      <button class="btn round" id="layerBtn" aria-label="地図の種類を切り替え" title="地図の種類">地</button>
+      <button class="btn primary" id="addBtn">＋ 家を追加</button>
+    </div>
+    <div class="list" id="list" hidden></div>
+  </main>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-scroll">
+  <input id="fName" placeholder="家・お店の名前（例：山田商店）" autocomplete="off" maxlength="80" aria-label="家・お店の名前">
+  <label class="flabel" for="fMemo">家のメモ（毎年使う情報）</label>
+  <textarea id="fMemo" class="memo" placeholder="例：裏口から声をかける、ご主人は〇〇さん" maxlength="500"></textarea>
+  <div class="status" id="fStatus"></div>
+  <p class="inherit" id="fInherit" hidden>前の年の「未訪問（不可）」を引き継いでいます</p>
+  <div class="warn" id="postWarn" hidden>
+    <span>まだ夜9時前です。俄留は9時以降に貼ります。お花だけ受け取った場合は「お花受取済」にしてください。</span>
+    <span class="warn-btns"><button class="btn" id="warnRcv">お花受取済にする</button><button class="btn" id="warnDone">貼ったので記録する</button></span>
+  </div>
+  <label class="flabel" for="fNote" id="fNoteLabel">今年のメモ</label>
+  <textarea id="fNote" placeholder="例：夕方なら在宅、20時に再訪" maxlength="500"></textarea>
+  <div class="meta" id="fMeta"></div>
+  <details class="hist"><summary>過去の記録</summary><ul id="fHist"></ul></details>
+  </div>
+  <div class="foot">
+    <span>
+      <button class="link danger" id="hideBtn">この家を非表示</button>
+      <span id="hideConfirm" hidden><button class="link danger" id="hideYes">非表示にする</button> · <button class="link" id="hideNo">やめる</button></span>
+    </span>
+    <span class="foot-r"><button class="link" id="moveBtn">位置を直す</button><button class="btn on" id="closeBtn">閉じる</button></span>
+  </div>
+</div>
+
+<div class="modal" id="admin" hidden>
+  <div class="card admin-card">
+    <div class="admin-head"><h2>管理</h2><button class="link" id="adminClose">閉じる</button></div>
+    <div id="adminWho"></div>
+    <div id="adminBody" hidden>
+      <section>
+        <h3>年度</h3>
+        <p>今の年度：<b id="aYear"></b></p>
+        <div class="row2"><button class="btn on" id="aNext"></button><button class="btn" id="aPrev"></button></div>
+        <div class="warn" id="yearConfirm" hidden>
+          <span id="yearMsg"></span>
+          <span class="warn-btns"><button class="btn on" id="yearYes">切り替える</button><button class="btn" id="yearNo">やめる</button></span>
+        </div>
+      </section>
+      <section>
+        <h3>家の非表示</h3>
+        <label class="check"><input type="checkbox" id="aAllowHide"> メンバーも家を非表示にできる</label>
+        <p class="small">オフにすると、非表示にできるのは管理者だけになります（記録がたまってきたら、追加だけにする運用向け）。</p>
+        <h4>非表示にした家</h4>
+        <ul class="hidden-list" id="aHidden"></ul>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="setup" hidden>
+  <div class="card">
+    <h2>俄留マップ</h2>
+    <p id="setupLead">お花回りのチームで、俄留を貼った家・断られた家・まだ回っていない家を地図で共有します。</p>
+    <label for="myName">あなたの名前</label>
+    <input id="myName" placeholder="例：しんくん" maxlength="30" autocomplete="nickname">
+    <div id="teamBox">
+      <label for="teamCode">チームの合言葉（リンクをもらった人は自動で入ります）</label>
+      <input id="teamCode" placeholder="もらった合言葉を入力" autocomplete="off">
+      <div class="row2">
+        <button class="btn on" id="joinBtn">このチームに入る</button>
+        <button class="btn" id="newTeamBtn">新しいチームを作る</button>
+      </div>
+    </div>
+    <button class="btn on" id="nameOnlyBtn" hidden>はじめる</button>
+    <p class="err" id="setupErr" hidden></p>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
