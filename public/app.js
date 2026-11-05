@@ -182,9 +182,10 @@ function effStatus(h, y = vy()) {
   if (r && r.status) return stOf(r.status).k;
   const prev = Object.keys(h.years || {}).map(Number).filter(v => v < y && h.years[v] && h.years[v].status).sort((a, b) => b - a)[0];
   if (prev && (h.years[prev].status === "ng" || h.years[prev].status === "refused")) return "ng";
+  if (prev && h.years[prev].status === "absent") return "absent"; // 不在・再訪はそのまま引き継ぐ
   return "todo";
 }
-const inherited = h => !rec(h) && effStatus(h) === "ng";
+const inherited = h => !rec(h) && effStatus(h) !== "todo";
 const shown = () => houses.filter(h => !h.hidden);
 
 /* ============ 地図 ============ */
@@ -457,7 +458,7 @@ function fillSheet(force) {
   $("fPhotoAdd").hidden = pc >= MAX_PHOTOS;
   if (inherited(h)) {
     const py = Object.keys(h.years || {}).map(Number).filter(v => v < vy() && h.years[v] && h.years[v].status).sort((a, b) => b - a)[0];
-    $("fInherit").textContent = `${py}年に「${stOf(h.years[py].status).label}」だったので、「未訪問（不可）」になっています`;
+    $("fInherit").textContent = `${py}年に「${stOf(h.years[py].status).label}」だったので、「${stOf(effStatus(h)).label}」を引き継いでいます`;
   }
   // 過去の記録
   const ys = Object.keys(h.years || {}).map(Number).filter(y => h.years[y] && (h.years[y].status || h.years[y].note)).sort((a, b) => b - a);
@@ -672,7 +673,7 @@ $("adminBtn").onclick = () => { $("yearConfirm").hidden = true; $("admin").hidde
 $("adminClose").onclick = () => { $("admin").hidden = true; };
 let pendingYear = null;
 function askYear(y, msg) { pendingYear = y; $("yearMsg").textContent = msg; $("yearConfirm").hidden = false; }
-$("aNext").onclick = () => askYear(curYear() + 1, `${curYear() + 1}年を始めます。家のリストと家のメモはそのままで、すべての家が「未訪問（可）」から始まります（去年「未訪問（不可）」または「断られた」だった家は「未訪問（不可）」になります）。${curYear()}年の記録は消えずに残ります。`);
+$("aNext").onclick = () => askYear(curYear() + 1, `${curYear() + 1}年を始めます。家のリストと家のメモはそのままで、すべての家が「未訪問（可）」から始まります（去年「未訪問（不可）」または「断られた」だった家は「未訪問（不可）」、「不在・再訪」だった家は「不在・再訪」のまま）。${curYear()}年の記録は消えずに残ります。`);
 $("aPrev").onclick = () => askYear(curYear() - 1, `年度を${curYear() - 1}年に戻します。間違えて切り替えたときに使ってください。${curYear()}年に入力した記録は消えません。`);
 $("yearNo").onclick = () => { $("yearConfirm").hidden = true; };
 $("yearYes").onclick = async () => {
