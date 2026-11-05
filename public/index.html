@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261105-3">
+<link rel="stylesheet" href="style.css?v=20261105-4">
 </head>
 <body>
 <div class="app">
@@ -65,6 +65,14 @@
   <input id="fName" placeholder="家・お店の名前（例：山田商店）" autocomplete="off" maxlength="80" aria-label="家・お店の名前">
   <label class="flabel" for="fMemo">家のメモ（毎年使う情報）</label>
   <textarea id="fMemo" class="memo" placeholder="例：裏口から声をかける、ご主人は〇〇さん" maxlength="500"></textarea>
+  <div class="photos-row">
+    <span class="photo-info" id="fPhotoInfo"></span>
+    <span class="photo-btns">
+      <button class="btn" id="fPhotoView" hidden>写真を見る</button>
+      <button class="btn" id="fPhotoAdd">📷 写真を追加</button>
+    </span>
+    <input type="file" id="fPhotoFile" accept="image/*" hidden>
+  </div>
   <div class="status" id="fStatus"></div>
   <p class="inherit" id="fInherit" hidden>前の年の「未訪問（不可）」を引き継いでいます</p>
   <label class="flabel" for="fNote" id="fNoteLabel">今年のメモ</label>
@@ -123,10 +131,24 @@
   </div>
 </div>
 
+<div class="viewer" id="photoViewer" hidden>
+  <div class="pv-head"><b id="pvTitle"></b><span id="pvCount"></span><button class="link pv-close" id="pvClose">閉じる</button></div>
+  <div class="pv-stage" id="pvStage">
+    <img id="pvImg" alt="俄留を貼る場所の写真">
+    <button class="pv-nav prev" id="pvPrev" aria-label="前の写真">‹</button>
+    <button class="pv-nav next" id="pvNext" aria-label="次の写真">›</button>
+  </div>
+  <div class="pv-foot">
+    <span id="pvMeta"></span>
+    <button class="link danger" id="pvDel">この写真を削除</button>
+    <span id="pvDelAsk" hidden><button class="link danger" id="pvDelYes">削除する</button> · <button class="link" id="pvDelNo">やめる</button></span>
+  </div>
+</div>
+
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="firebase-config.js?v=20261105-3"></script>
-<script src="app.js?v=20261105-3"></script>
+<script src="firebase-config.js?v=20261105-4"></script>
+<script src="app.js?v=20261105-4"></script>
 </body>
 </html>

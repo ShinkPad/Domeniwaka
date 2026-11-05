@@ -85,6 +85,17 @@ async function createFirebaseStore(team, onSync) {
     subscribeMembers(cb) { fs.onSnapshot(mcol, s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => {}); },
     setMember(data) { if (auth.currentUser) fs.setDoc(fs.doc(mcol, auth.currentUser.uid), data).catch(console.error); },
     removeMember() { if (auth.currentUser) fs.deleteDoc(fs.doc(mcol, auth.currentUser.uid)).catch(console.error); },
+    // 写真は家とは別の場所（photos/{家のid}）に置き、見るときだけ読み込む
+    async getPhotos(id) {
+      const ref = fs.doc(db, "teams", team, "photos", id);
+      let snap; try { snap = await fs.getDocFromServer(ref); } catch (e) { if (e.code === "permission-denied") throw e; snap = await fs.getDoc(ref); }
+      return snap.exists() ? (snap.data().list || []) : [];
+    },
+    setPhotos(id, list) {
+      const ref = fs.doc(db, "teams", team, "photos", id);
+      const p = list.length ? fs.setDoc(ref, { list, updatedAt: Date.now() }) : fs.deleteDoc(ref);
+      return p.catch(e => { err(e); throw e; });
+    },
   };
 }
 
@@ -98,7 +109,7 @@ function createLocalStore(team, onSync) {
     addEventListener("storage", e => { if (e.key === key) emit(); });
     return { read, write(fn) { const o = read(); fn(o); ls.set(key, JSON.stringify(o)); emit(); }, sub(cb) { subs.push(cb); setTimeout(emit, 0); } };
   };
-  const H = mk("houses"), M = mk("members"), T = mk("team");
+  const H = mk("houses"), M = mk("members"), T = mk("team"), P = mk("photos");
   const setPath = (o, path, v) => { const ks = path.split("."); let x = o; ks.slice(0, -1).forEach(k => { if (typeof x[k] !== "object" || !x[k]) x[k] = {}; x = x[k]; }); x[ks[ks.length - 1]] = v; };
   let myMid = null;
   try { myMid = sessionStorage.getItem("niwakadome:mid"); } catch {}
@@ -118,6 +129,8 @@ function createLocalStore(team, onSync) {
     subscribeMembers(cb) { M.sub(o => cb(Object.entries(o).map(([id, v]) => ({ id, ...v })))); },
     setMember(data) { M.write(o => { o[myMid] = data; }); },
     removeMember() { M.write(o => { delete o[myMid]; }); },
+    async getPhotos(id) { return (P.read()[id] || []); },
+    setPhotos(id, list) { try { P.write(o => { if (list.length) o[id] = list; else delete o[id]; }); return Promise.resolve(); } catch (e) { toast("この端末には写真を保存できませんでした（容量不足）"); return Promise.reject(e); } },
   };
 }
 function err(e) {
@@ -274,7 +287,7 @@ function pinIcon(h) {
   const cls = "pin" + (h.id === selId ? " sel" : "") + (h._pending ? " pending" : "");
   return L.divIcon({
     className: "pin-icon", iconSize: [0, 0], iconAnchor: [0, 0],
-    html: `<div class="${cls}" style="--c:${stOf(effStatus(h)).c};--bgc:${stOf(effStatus(h)).bg}"><i class="head"></i><span class="lbl">${esc(h.name || "（名前なし）")}</span></div>`,
+    html: `<div class="${cls}" style="--c:${stOf(effStatus(h)).c};--bgc:${stOf(effStatus(h)).bg}"><i class="head"></i><span class="lbl">${esc(h.name || "（名前なし）")}${h.photoCount ? " 📷" : ""}</span></div>`,
   });
 }
 function renderPins() {
@@ -334,7 +347,7 @@ function renderList() {
     const s = stOf(effStatus(h)), r = rec(h), b = document.createElement("button");
     const sub = [h.memo, r && r.note].filter(Boolean).join("／");
     b.className = "row"; b.style.setProperty("--c", s.c); b.style.setProperty("--bgc", s.bg);
-    b.innerHTML = `<span class="dot"></span><span class="nm">${esc(h.name || "（名前なし）")}${sub ? `<small>${esc(sub)}</small>` : ""}</span><span class="st">${s.label}</span>`;
+    b.innerHTML = `<span class="dot"></span><span class="nm">${esc(h.name || "（名前なし）")}${h.photoCount ? " 📷" : ""}${sub ? `<small>${esc(sub)}</small>` : ""}</span><span class="st">${s.label}</span>`;
     b.onclick = () => { setView("map"); map.setView([h.lat, h.lng], Math.max(map.getZoom(), 18)); openSheet(h.id); };
     L_.appendChild(b);
   });
@@ -385,6 +398,11 @@ function fillSheet(force) {
   const es = effStatus(h);
   fS.querySelectorAll("button").forEach(b => { b.setAttribute("aria-pressed", b.dataset.k === es); b.disabled = past; });
   $("fInherit").hidden = !inherited(h);
+  const pc = h.photoCount || 0;
+  $("fPhotoInfo").textContent = pc ? `貼る場所の写真 ${pc}枚` : "貼る場所の写真はまだありません";
+  $("fPhotoView").hidden = !pc;
+  $("fPhotoView").textContent = `写真を見る（${pc}枚）`;
+  $("fPhotoAdd").hidden = pc >= MAX_PHOTOS;
   if (inherited(h)) {
     const py = Object.keys(h.years || {}).map(Number).filter(v => v < vy() && h.years[v] && h.years[v].status).sort((a, b) => b - a)[0];
     $("fInherit").textContent = `${py}年に「${stOf(h.years[py].status).label}」だったので、「未訪問（不可）」になっています`;
@@ -442,6 +460,87 @@ $("hideYes").onclick = () => {
     .catch(() => { h.hidden = false; renderAll(); });
 };
 $("moveBtn").onclick = () => setMode("move");
+
+/* ============ 貼る場所の写真 ============ */
+// 1軒2枚まで。スマホで撮った写真を横1000px前後・約100KBのJPEGに縮めてから保存する（無料枠で使えるように）
+const MAX_PHOTOS = 2;
+function loadImage(file) {
+  return new Promise((res, rej) => { const u = URL.createObjectURL(file), i = new Image(); i.onload = () => { URL.revokeObjectURL(u); res(i); }; i.onerror = () => { URL.revokeObjectURL(u); rej(new Error("画像を読み込めません")); }; i.src = u; });
+}
+async function shrinkPhoto(file) {
+  const img = await loadImage(file);
+  for (const [maxSide, q] of [[1000, 0.72], [900, 0.6], [760, 0.5], [640, 0.45]]) {
+    const k = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    const data = c.toDataURL("image/jpeg", q);
+    if (data.length <= 300000) return data;
+  }
+  throw new Error("写真が大きすぎます");
+}
+$("fPhotoAdd").onclick = () => $("fPhotoFile").click();
+$("fPhotoFile").onchange = async () => {
+  const file = $("fPhotoFile").files[0]; $("fPhotoFile").value = "";
+  const h = cur(); if (!file || !h || !store) return;
+  const hid = h.id;
+  try {
+    toast("写真を縮めています…");
+    const data = await shrinkPhoto(file);
+    const list = await store.getPhotos(hid);
+    if (list.length >= MAX_PHOTOS) { toast(`写真は${MAX_PHOTOS}枚までです。いらない写真を削除してから追加してください`); return; }
+    list.push({ data, at: Date.now(), by: myName });
+    await store.setPhotos(hid, list);
+    const hh = houses.find(x => x.id === hid); if (hh) hh.photoCount = list.length;
+    renderAll();
+    await store.update(hid, { photoCount: list.length, updatedAt: Date.now(), updatedBy: myName });
+    toast("写真を保存しました");
+  } catch (e) { console.error(e); if (e && !e.code) toast(e.message === "写真が大きすぎます" ? "写真を小さくできませんでした。別の写真で試してください" : "写真を読み込めませんでした"); }
+};
+
+// 写真を大きく表示する画面
+let viewer = { id: null, list: [], i: 0, asking: false };
+function renderViewer() {
+  const { list, i } = viewer, x = list[i];
+  $("pvImg").src = x ? x.data : "";
+  $("pvCount").textContent = list.length ? `${i + 1} / ${list.length}` : "";
+  $("pvMeta").textContent = x ? `${x.by ? x.by + "・" : ""}${x.at ? fmt(x.at) : ""}` : "";
+  $("pvPrev").hidden = $("pvNext").hidden = list.length < 2;
+  $("pvDel").hidden = viewer.asking || !list.length;
+  $("pvDelAsk").hidden = !viewer.asking;
+}
+$("fPhotoView").onclick = async () => {
+  const h = cur(); if (!h || !store) return;
+  viewer = { id: h.id, list: [], i: 0, asking: false };
+  $("pvTitle").textContent = h.name || "（名前なし）";
+  $("photoViewer").hidden = false; $("pvImg").src = ""; $("pvCount").textContent = "読み込み中…";
+  try { viewer.list = await store.getPhotos(h.id); }
+  catch (e) { console.error(e); toast("写真を読み込めませんでした。電波を確認してください"); }
+  if (!viewer.list.length) $("pvCount").textContent = "写真がありません";
+  renderViewer();
+};
+$("pvClose").onclick = () => { $("photoViewer").hidden = true; $("pvImg").src = ""; };
+$("pvPrev").onclick = () => { viewer.i = (viewer.i + viewer.list.length - 1) % viewer.list.length; viewer.asking = false; renderViewer(); };
+$("pvNext").onclick = () => { viewer.i = (viewer.i + 1) % viewer.list.length; viewer.asking = false; renderViewer(); };
+$("pvDel").onclick = () => { viewer.asking = true; renderViewer(); };
+$("pvDelNo").onclick = () => { viewer.asking = false; renderViewer(); };
+$("pvDelYes").onclick = async () => {
+  const id = viewer.id, list = viewer.list.slice(); list.splice(viewer.i, 1);
+  try {
+    await store.setPhotos(id, list);
+    viewer.list = list; viewer.i = Math.max(0, Math.min(viewer.i, list.length - 1)); viewer.asking = false;
+    const hh = houses.find(x => x.id === id); if (hh) hh.photoCount = list.length;
+    renderAll(); renderViewer();
+    store.update(id, { photoCount: list.length, updatedAt: Date.now(), updatedBy: myName }).catch(() => {});
+    toast("写真を削除しました");
+    if (!list.length) $("pvClose").onclick();
+  } catch (e) { console.error(e); }
+};
+// スマホでは左右にスワイプしてめくれる
+(() => { let x0 = null; const el = $("pvStage");
+  el.addEventListener("touchstart", e => { x0 = e.touches[0].clientX; }, { passive: true });
+  el.addEventListener("touchend", e => { if (x0 == null || viewer.list.length < 2) return; const dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) > 40) (dx < 0 ? $("pvNext") : $("pvPrev")).onclick(); });
+})();
 
 /* ============ 追加・移動 ============ */
 function setMode(m) {
@@ -542,6 +641,7 @@ $("aHidden").onclick = e => {
   if (ds.deleteYes) {
     const did = ds.deleteYes, h = houses.find(x => x.id === did); pendingDelete = null;
     houses = houses.filter(x => x.id !== did); renderAll();
+    if (h && h.photoCount) store.setPhotos(did, []).catch(() => {});
     store.remove(did).then(() => toast(`${(h && h.name) || "家"}を完全に削除しました`)).catch(() => { if (h) houses.push(h); renderAll(); });
     return;
   }
