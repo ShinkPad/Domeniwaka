@@ -182,7 +182,9 @@ $("locBtn").onclick = () => map.locate({ setView: true, maxZoom: 18, enableHighA
 /* ============ メンバーの位置共有 ============ */
 // 自分で「位置を共有」をオンにした人だけが表示される。アプリを閉じる・オフにすると消える。
 // 10分以上更新がない人は表示しない（アプリを閉じたまま放置した場合など）。
-const STALE_MS = 10 * 60 * 1000, SEND_EVERY_MS = 15 * 1000;
+// 送信は60秒に1回まで。立ち止まっている（10m未満しか動いていない）ときは5分に1回だけ送る。
+// Firestore の無料枠（1日 読み込み5万回）を超えないように回数を抑えている。
+const STALE_MS = 10 * 60 * 1000, SEND_EVERY_MS = 60 * 1000, IDLE_SEND_MS = 5 * 60 * 1000, MIN_MOVE_M = 10;
 let members = [], sharing = false, watchId = null, lastSent = 0, lastPos = null;
 const memberMarkers = new Map();
 const ago = t => { const m = Math.floor((Date.now() - t) / 60000); return m < 1 ? "今" : m + "分前"; };
@@ -211,7 +213,8 @@ setInterval(renderMembers, 30 * 1000);
 function sendPos(p, force) {
   const now = Date.now();
   const moved = lastPos ? map.distance(lastPos, [p.coords.latitude, p.coords.longitude]) : Infinity;
-  if (!force && now - lastSent < SEND_EVERY_MS && moved < 15) return;
+  const elapsed = now - lastSent;
+  if (!force && (elapsed < SEND_EVERY_MS || (moved < MIN_MOVE_M && elapsed < IDLE_SEND_MS))) return;
   lastSent = now; lastPos = [p.coords.latitude, p.coords.longitude];
   store.setMember({ name: myName, lat: p.coords.latitude, lng: p.coords.longitude, acc: Math.round(p.coords.accuracy || 0), at: now });
 }
@@ -220,7 +223,7 @@ function setSharing(on) {
   if (on) {
     if (!navigator.geolocation) { toast("この端末では位置情報を使えません"); return; }
     watchId = navigator.geolocation.watchPosition(
-      p => { if (!sharing) { sharing = true; updateShareBtn(); toast("位置の共有を始めました"); } sendPos(p, false); },
+      p => { const first = !sharing; if (first) { sharing = true; updateShareBtn(); toast("位置の共有を始めました"); } sendPos(p, first); },
       () => { toast("位置情報を取得できませんでした（ブラウザの許可を確認）"); setSharing(false); },
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
     );
