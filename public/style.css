@@ -1,7 +1,7 @@
 :root{
   --bg:#eef1f5; --surface:#ffffff; --ink:#18263a; --muted:#5d6b7e; --line:#d5dbe4;
   --ai:#1f3a5f; --shu:#c8432b; --on-ai:#ffffff;
-  --st-done:#2f8a57; --st-ref:#c23b2e; --st-abs:#c98d12; --st-todo:#8a93a3; --st-ng:#2e3440; --st-rcv:#c2408a;
+  --st-done:#2f8a57; --st-ref:#c23b2e; --st-abs:#c98d12; --st-todo:#8a93a3; --st-ng:#2e3440; --st-ng-bg:repeating-linear-gradient(-45deg,#1a1a1a 0 3px,#f2c200 3px 6px); --st-rcv:#c2408a;
   --mem:#7a3fb8; --mem-me:#2a7de1;
   --f-disp:"Dela Gothic One","Hiragino Sans","Yu Gothic",sans-serif;
   --f-body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
@@ -29,7 +29,7 @@ h1 small{font-family:var(--f-body);font-size:12px;color:var(--muted);letter-spac
 .tabs button[aria-pressed="true"]{background:var(--ai);color:var(--on-ai)}
 .chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
 .chip{flex:none;display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:5px 10px;font:inherit;font-size:13px;cursor:pointer;font-variant-numeric:tabular-nums}
-.chip .dot{width:10px;height:10px;border-radius:50%;background:var(--c)}
+.chip .dot{width:10px;height:10px;border-radius:50%;background:var(--bgc,var(--c))}
 .chip[aria-pressed="false"]{opacity:.4}
 .bar{display:flex;align-items:center;gap:10px}
 .progress{flex:1;height:4px;border-radius:2px;background:var(--line);overflow:hidden;display:flex}
@@ -45,7 +45,7 @@ main{flex:1;position:relative;min-height:0}
 /* ピン */
 .pin-icon{background:none;border:0}
 .pin{position:relative;width:0;height:0}
-.pin .head{position:absolute;left:-11px;top:-30px;width:22px;height:22px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--c);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.pin .head{position:absolute;left:-11px;top:-30px;width:22px;height:22px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--bgc,var(--c));border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .pin .lbl{position:absolute;left:0;top:-2px;transform:translateX(-50%);font-size:11px;font-weight:700;background:var(--surface);color:var(--ink);padding:1px 5px;border-radius:4px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;box-shadow:0 1px 3px rgba(0,0,0,.25)}
 .pin.sel .head{outline:3px solid var(--shu);outline-offset:2px}
 .pin.pending .head{border-style:dashed}
@@ -70,7 +70,7 @@ main{flex:1;position:relative;min-height:0}
 .hint-btn{border:0;background:var(--on-ai);color:var(--ai);font:inherit;font-size:12px;font-weight:700;border-radius:999px;padding:5px 10px;cursor:pointer}
 .list{position:absolute;inset:0;z-index:550;overflow-y:auto;padding:10px max(16px,env(safe-area-inset-right,0px)) 100px max(16px,env(safe-area-inset-left,0px));background:var(--bg)}
 .list .row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--ink);font:inherit;padding:12px 4px;cursor:pointer}
-.row .dot{flex:none;width:12px;height:12px;border-radius:50%;background:var(--c)}
+.row .dot{flex:none;width:12px;height:12px;border-radius:50%;background:var(--bgc,var(--c))}
 .row .nm{flex:1;min-width:0;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row .nm small{display:block;font-weight:400;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis}
 .row .st{flex:none;font-size:12px;font-weight:700;color:var(--c)}
@@ -81,7 +81,9 @@ textarea{min-height:52px;resize:vertical;font-size:15px}
 input:focus,textarea:focus{outline:2px solid var(--ai);outline-offset:0}
 .status{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .status button{border:2px solid var(--c);background:transparent;color:var(--ink);font:inherit;font-size:13px;font-weight:700;border-radius:10px;padding:10px 2px;cursor:pointer}
-.status button[aria-pressed="true"]{background:var(--c);color:var(--surface)}
+.status button[aria-pressed="true"]{background:var(--bgc,var(--c));color:var(--surface)}
+.status button[data-k="ng"]{border-color:#1a1a1a}
+.status button[data-k="ng"][aria-pressed="true"]{color:#fff;background:linear-gradient(#1a1a1a,#1a1a1a) center/86% 64% no-repeat,var(--st-ng-bg)}
 .meta{font-size:12px;color:var(--muted);min-height:1em}
 .foot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .foot-r{display:flex;align-items:center;gap:14px}

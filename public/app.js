@@ -8,12 +8,13 @@ const startView = window.NIWAKA_START_VIEW || { lat: 35.0730, lng: 133.7535, zoo
 // "todo" は以前の「未訪問」と同じ扱い（＝未訪問・可）
 const ST = [
   { k: "todo",     label: "未訪問（可）",   c: "var(--st-todo)" },
-  { k: "ng",       label: "未訪問（不可）", c: "var(--st-ng)" },
+  { k: "ng",       label: "未訪問（不可）", c: "var(--st-ng)", bg: "var(--st-ng-bg)" }, // 黒と黄色のしましま
   { k: "received", label: "お花受取済",     c: "var(--st-rcv)" },
   { k: "done",     label: "俄留を貼った",   c: "var(--st-done)" },
   { k: "absent",   label: "不在・再訪",     c: "var(--st-abs)" },
   { k: "refused",  label: "断られた",       c: "var(--st-ref)" },
 ];
+ST.forEach(s => { if (!s.bg) s.bg = s.c; }); // 塗りつぶしに使う色（しましまの状態だけ別）
 const stOf = k => ST.find(s => s.k === k) || ST[0];
 // 俄留を貼れるのは夜9時から（日付が変わっても朝5時までは「夜」として扱う）
 const POST_FROM_HOUR = 21;
@@ -273,7 +274,7 @@ function pinIcon(h) {
   const cls = "pin" + (h.id === selId ? " sel" : "") + (h._pending ? " pending" : "");
   return L.divIcon({
     className: "pin-icon", iconSize: [0, 0], iconAnchor: [0, 0],
-    html: `<div class="${cls}" style="--c:${stOf(effStatus(h)).c}"><i class="head"></i><span class="lbl">${esc(h.name || "（名前なし）")}</span></div>`,
+    html: `<div class="${cls}" style="--c:${stOf(effStatus(h)).c};--bgc:${stOf(effStatus(h)).bg}"><i class="head"></i><span class="lbl">${esc(h.name || "（名前なし）")}</span></div>`,
   });
 }
 function renderPins() {
@@ -302,7 +303,7 @@ function renderChips() {
   const box = $("chips"); box.innerHTML = "";
   ST.forEach(s => {
     const b = document.createElement("button");
-    b.className = "chip"; b.style.setProperty("--c", s.c);
+    b.className = "chip"; b.style.setProperty("--c", s.c); b.style.setProperty("--bgc", s.bg);
     b.setAttribute("aria-pressed", filter.has(s.k));
     b.innerHTML = `<span class="dot"></span>${s.label} <b>${cnt[s.k]}</b>`;
     b.onclick = () => { filter.has(s.k) ? filter.delete(s.k) : filter.add(s.k); if (!filter.size) ST.forEach(t => filter.add(t.k)); renderAll(); };
@@ -317,7 +318,7 @@ function renderChips() {
     nb.textContent = night ? `俄留を貼る時間です。お花受取済 ${n}件 →` : `お花受取済 ${n}件：俄留は${POST_FROM_HOUR}時から`;
   }
   const tot = shown().length || 1;
-  $("progress").innerHTML = shown().length ? ST.map(s => `<i style="width:${cnt[s.k] / tot * 100}%;background:${s.c}"></i>`).join("") : "";
+  $("progress").innerHTML = shown().length ? ST.map(s => `<i style="width:${cnt[s.k] / tot * 100}%;background:${s.bg}"></i>`).join("") : "";
 }
 function renderList() {
   const L_ = $("list"); L_.innerHTML = "";
@@ -332,7 +333,7 @@ function renderList() {
   arr.forEach(h => {
     const s = stOf(effStatus(h)), r = rec(h), b = document.createElement("button");
     const sub = [h.memo, r && r.note].filter(Boolean).join("／");
-    b.className = "row"; b.style.setProperty("--c", s.c);
+    b.className = "row"; b.style.setProperty("--c", s.c); b.style.setProperty("--bgc", s.bg);
     b.innerHTML = `<span class="dot"></span><span class="nm">${esc(h.name || "（名前なし）")}${sub ? `<small>${esc(sub)}</small>` : ""}</span><span class="st">${s.label}</span>`;
     b.onclick = () => { setView("map"); map.setView([h.lat, h.lng], Math.max(map.getZoom(), 18)); openSheet(h.id); };
     L_.appendChild(b);
@@ -357,7 +358,7 @@ $("backToNow").onclick = () => { viewYear = null; renderAll(); };
 const fS = $("fStatus");
 ST.forEach(s => {
   const b = document.createElement("button");
-  b.dataset.k = s.k; b.textContent = s.label; b.style.setProperty("--c", s.c);
+  b.dataset.k = s.k; b.textContent = s.label; b.style.setProperty("--c", s.c); b.style.setProperty("--bgc", s.bg);
   b.onclick = () => {
     if (isPast()) return;
     setStatus(s.k);
