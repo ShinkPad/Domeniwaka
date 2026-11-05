@@ -161,3 +161,7 @@ textarea:disabled,.status button:disabled{opacity:.6;cursor:not-allowed}
 .hidden-list li{flex-wrap:wrap}
 
 .modal .small{font-size:12px;margin-top:-4px}
+
+.stuck{display:flex;flex-direction:column;gap:6px;align-items:flex-start;background:color-mix(in srgb,var(--st-ref) 12%,var(--surface));border:1px solid var(--st-ref);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6}
+.stuck b{color:var(--st-ref)}
+.stuck .btn{box-shadow:none;padding:6px 12px;font-size:13px}

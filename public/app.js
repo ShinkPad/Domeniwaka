@@ -38,6 +38,7 @@ const USE_FIREBASE = !!(firebaseConfig.apiKey && firebaseConfig.projectId);
 // Firebase（チームで共有）
 async function createFirebaseStore(team, onSync) {
   const V = "10.12.2";
+  onSync("loading");
   const [{ initializeApp }, A, fs] = await Promise.all([
     import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
     import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),
@@ -50,8 +51,10 @@ async function createFirebaseStore(team, onSync) {
     db = fs.initializeFirestore(app, { localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager() }) });
   } catch { db = fs.getFirestore(app); }
   const auth = A.getAuth(app);
+  onSync("auth");
   await new Promise(res => { const un = A.onAuthStateChanged(auth, () => { un(); res(); }); }); // 前回のログインを復元
   if (!auth.currentUser) await A.signInAnonymously(auth);
+  onSync("connecting");
   const tdoc = fs.doc(db, "teams", team);
   const col = fs.collection(db, "teams", team, "houses");
   const mcol = fs.collection(db, "teams", team, "members");
@@ -568,8 +571,17 @@ $("shareBtn").onclick = async () => {
   catch { prompt("このリンクをチームに送ってください", url); }
 };
 
-const SYNC = { local: "お試しモード（この端末だけ）", ok: "共有中", pending: "未送信あり・電波待ち", offline: "オフライン", error: "接続エラー" };
-function setSync(s) { const el = $("sync"); el.dataset.state = s; el.textContent = SYNC[s] || s; }
+const SYNC = { local: "お試しモード（この端末だけ）", loading: "読み込み中…", auth: "ログイン中…", connecting: "サーバーに接続中…", ok: "共有中", pending: "未送信あり・電波待ち", offline: "オフライン", error: "接続エラー", stuck: "つながりません" };
+let syncState = "";
+function setSync(s) { syncState = s; const el = $("sync"); el.dataset.state = s === "stuck" ? "error" : s; el.textContent = SYNC[s] || s; if (s === "ok" || s === "pending" || s === "local") $("stuck").hidden = true; }
+// 15秒たってもサーバーとつながらないときは、原因と対処を表示する
+function watchStuck() {
+  setTimeout(() => {
+    if (["ok", "pending", "local"].includes(syncState)) return;
+    setSync("stuck"); $("stuck").hidden = false;
+  }, 15000);
+}
+$("stuckReload").onclick = () => location.reload();
 addEventListener("offline", () => setSync("offline"));
 
 let tt;
@@ -619,6 +631,7 @@ async function begin(code, isNew) {
   $("setup").hidden = true;
   $("teamLabel").textContent = USE_FIREBASE ? "" : "お試しモード";
   $("shareBtn").hidden = !USE_FIREBASE;
+  if (USE_FIREBASE) watchStuck();
   try {
     store = USE_FIREBASE ? await createFirebaseStore(code, setSync) : createLocalStore(code, setSync);
   } catch (e) {
