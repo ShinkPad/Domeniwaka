@@ -216,3 +216,14 @@ textarea.memo{min-height:44px}
 .hist .hn{grid-column:2;color:var(--muted);font-size:12px}
 .hist li.empty{display:block;color:var(--muted);border:0}
 .sheet .foot{border-top:1px solid var(--line);padding-top:8px}
+
+/* 詳細シートを下にスライドして地図を見る */
+.sheet{transition:transform .22s ease}
+.sheet.dragging{transition:none}
+.sh-top{display:flex;flex-direction:column;gap:8px;touch-action:none;cursor:grab;margin-top:-8px;padding-top:8px;user-select:none;-webkit-user-select:none}
+.sh-top .sh-name{user-select:text;-webkit-user-select:text}
+.sheet.dragging .sh-top{cursor:grabbing}
+.grab{width:44px;height:5px;margin:2px auto 2px}
+.sheet.peek{box-shadow:0 -4px 16px rgba(0,0,0,.25)}
+.sheet.peek .grab{background:var(--muted)}
+@media (prefers-reduced-motion: reduce){.sheet{transition:none}}

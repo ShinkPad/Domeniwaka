@@ -389,11 +389,47 @@ const cur = () => houses.find(h => h.id === selId);
 const fmt = t => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
 function openSheet(id) {
   if (selId && selId !== id) saveText();
-  selId = id; $("sheet").hidden = false;
+  selId = id; $("sheet").hidden = false; setPeek(false);
   $("hideConfirm").hidden = true;
   fillSheet(true); renderPins();
 }
-function closeSheet() { saveText(); selId = null; $("sheet").hidden = true; setMode(null); renderPins(); }
+function closeSheet() { saveText(); selId = null; $("sheet").hidden = true; setPeek(false); setMode(null); renderPins(); }
+
+// 上の部分（名前のあたり）を下にスライドすると、名前だけ残して下に収まり、地図が見える。
+// 収まっているときはタップか上にスライドで元に戻る。
+const sheetEl = $("sheet"), shTop = $("shTop");
+let sheetDrag = null, peek = false;
+const peekOffset = () => Math.max(0, sheetEl.offsetHeight - shTop.offsetHeight - 10);
+function setPeek(on) {
+  peek = on; sheetEl.classList.toggle("peek", on);
+  sheetEl.style.transform = on ? `translateY(${peekOffset()}px)` : "";
+  if (on) { const h = cur(); if (h) map.panInside([h.lat, h.lng], { paddingTopLeft: [20, 40], paddingBottomRight: [20, shTop.offsetHeight + 50] }); }
+}
+shTop.addEventListener("pointerdown", e => {
+  if (e.target.closest("button")) return;
+  sheetDrag = { y0: e.clientY, base: peek ? peekOffset() : 0, y: peek ? peekOffset() : 0, moved: false, id: e.pointerId };
+});
+addEventListener("pointermove", e => {
+  if (!sheetDrag || e.pointerId !== sheetDrag.id) return;
+  const dy = e.clientY - sheetDrag.y0;
+  if (!sheetDrag.moved) {
+    if (Math.abs(dy) < 6) return;
+    sheetDrag.moved = true; sheetEl.classList.add("dragging");
+    if (document.activeElement === $("fName")) $("fName").blur();
+  }
+  sheetDrag.y = Math.max(0, Math.min(peekOffset(), sheetDrag.base + dy));
+  sheetEl.style.transform = `translateY(${sheetDrag.y}px)`;
+});
+function endSheetDrag(e) {
+  if (!sheetDrag) return;
+  const d = sheetDrag; sheetDrag = null; sheetEl.classList.remove("dragging");
+  if (!d.moved) { if (peek) setPeek(false); return; }
+  // 下に3分の1以上下げたら収める。収まった状態から少しでも上げたら戻す
+  setPeek(d.base ? d.y > peekOffset() * 0.75 : d.y > peekOffset() * 0.33);
+}
+addEventListener("pointerup", endSheetDrag);
+addEventListener("pointercancel", endSheetDrag);
+addEventListener("resize", () => { if (peek) sheetEl.style.transform = `translateY(${peekOffset()}px)`; });
 function fillSheet(force) {
   const h = cur(); if (!h || h.hidden) { selId = null; $("sheet").hidden = true; return; }
   const r = rec(h), past = isPast();
