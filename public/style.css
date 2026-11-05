@@ -101,8 +101,6 @@ input:focus,textarea:focus{outline:2px solid var(--ai);outline-offset:0}
 .toast{position:fixed;z-index:3000;left:50%;top:calc(120px + env(safe-area-inset-top,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:999px;font-size:13px;font-weight:700;max-width:90vw;text-align:center}
 @media (prefers-reduced-motion: no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(20px);opacity:.6}}}
 
-.notice{border:0;border-radius:10px;padding:8px 12px;font:inherit;font-size:13px;font-weight:700;text-align:left;cursor:pointer;background:color-mix(in srgb,var(--st-rcv) 14%,var(--surface));color:var(--st-rcv)}
-.notice.go{background:var(--st-rcv);color:#fff}
 .warn{display:flex;flex-direction:column;gap:8px;background:color-mix(in srgb,var(--st-abs) 15%,var(--surface));border:1px solid var(--st-abs);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6}
 .warn-btns{display:flex;gap:8px;flex-wrap:wrap}
 .warn-btns .btn{flex:1;box-shadow:none;font-size:13px;padding:8px 10px}

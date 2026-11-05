@@ -322,14 +322,6 @@ function renderChips() {
     b.onclick = () => { filter.has(s.k) ? filter.delete(s.k) : filter.add(s.k); if (!filter.size) ST.forEach(t => filter.add(t.k)); renderAll(); };
     box.appendChild(b);
   });
-  // 俄留を貼る時間のお知らせ（今の年度を見ているときだけ）
-  const n = cnt.received, nb = $("notice");
-  nb.hidden = !n || isPast();
-  if (n) {
-    const night = canPost();
-    nb.classList.toggle("go", night);
-    nb.textContent = night ? `俄留を貼る時間です。お花受取済 ${n}件 →` : `お花受取済 ${n}件：俄留は${POST_FROM_HOUR}時から`;
-  }
   const tot = shown().length || 1;
   $("progress").innerHTML = shown().length ? ST.map(s => `<i style="width:${cnt[s.k] / tot * 100}%;background:${s.bg}"></i>`).join("") : "";
 }
@@ -444,7 +436,6 @@ function saveText() {
 }
 ["fName", "fMemo", "fNote"].forEach(id => $(id).addEventListener("change", saveText));
 $("closeBtn").onclick = closeSheet;
-$("notice").onclick = () => { filter = new Set(["received"]); setView("list"); renderAll(); };
 setInterval(() => { renderChips(); renderList(); }, 60 * 1000); // 9時になったら表示を切り替える
 
 // 「削除」は非表示にするだけ。記録は残り、管理者が元に戻せる
