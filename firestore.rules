@@ -21,7 +21,9 @@ service cloud.firestore {
       function okTeam() { return authed() && team.size() >= 8; }
 
       // チーム設定（今の年度・メンバーが非表示にできるか）は管理者だけが変えられる
-      allow read: if okTeam();
+      // チームの一覧は誰にも見せない（合言葉を推測・収集されないように）。合言葉を知っている人だけが1件ずつ読める
+      allow get: if okTeam();
+      allow list: if false;
       allow write: if okTeam() && isAdmin();
 
       match /houses/{house} {
