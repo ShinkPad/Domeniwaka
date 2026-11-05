@@ -417,13 +417,19 @@ addEventListener("pointermove", e => {
     sheetDrag.moved = true; sheetEl.classList.add("dragging");
     if (document.activeElement === $("fName")) $("fName").blur();
   }
-  sheetDrag.y = Math.max(0, Math.min(peekOffset(), sheetDrag.base + dy));
+  sheetDrag.y = Math.max(0, Math.min(sheetEl.offsetHeight, sheetDrag.base + dy)); // 収まる位置より下まで引ける（引き切ると閉じる）
   sheetEl.style.transform = `translateY(${sheetDrag.y}px)`;
 });
 function endSheetDrag(e) {
   if (!sheetDrag) return;
   const d = sheetDrag; sheetDrag = null; sheetEl.classList.remove("dragging");
   if (!d.moved) { if (peek) setPeek(false); return; }
+  // 収まる位置よりさらに下まで引き下げたら閉じる
+  if (d.y > peekOffset() + Math.min(60, shTop.offsetHeight * 0.5)) {
+    sheetEl.style.transform = `translateY(${sheetEl.offsetHeight}px)`;
+    setTimeout(closeSheet, 200);
+    return;
+  }
   // 下に3分の1以上下げたら収める。収まった状態から少しでも上げたら戻す
   setPeek(d.base ? d.y > peekOffset() * 0.75 : d.y > peekOffset() * 0.33);
 }
