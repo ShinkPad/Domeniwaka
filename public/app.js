@@ -377,7 +377,8 @@ $("backToNow").onclick = () => { viewYear = null; renderAll(); };
 const fS = $("fStatus");
 ST.forEach(s => {
   const b = document.createElement("button");
-  b.dataset.k = s.k; b.textContent = s.label; b.style.setProperty("--c", s.c); b.style.setProperty("--bgc", s.bg);
+  b.dataset.k = s.k; b.style.setProperty("--c", s.c); b.style.setProperty("--bgc", s.bg);
+  b.innerHTML = `<span class="sw" aria-hidden="true"></span><span class="st-l">${s.label}</span><span class="ck" aria-hidden="true">✓</span>`;
   b.onclick = () => {
     if (isPast()) return;
     setStatus(s.k);
@@ -399,15 +400,18 @@ function fillSheet(force) {
   if (force || document.activeElement !== $("fName")) $("fName").value = h.name || "";
   if (force || document.activeElement !== $("fMemo")) $("fMemo").value = h.memo || "";
   if (force || document.activeElement !== $("fNote")) $("fNote").value = (r && r.note) || "";
-  $("fNoteLabel").textContent = past ? `${vy()}年のメモ` : `今年（${vy()}年）のメモ`;
+  $("fNoteLabel").textContent = `${vy()}年のメモ`;
   $("fNote").disabled = past;
-  const es = effStatus(h);
+  const es = effStatus(h), est = stOf(es);
+  $("fDot").style.setProperty("--c", est.c); $("fDot").style.setProperty("--bgc", est.bg);
+  $("fPill").textContent = est.label; $("fPill").style.setProperty("--c", est.c); $("fPill").dataset.k = es;
+  $("fStatusLabel").textContent = past ? `${vy()}年の状態（見るだけ）` : `${vy()}年の状態`;
   fS.querySelectorAll("button").forEach(b => { b.setAttribute("aria-pressed", b.dataset.k === es); b.disabled = past; });
   $("fInherit").hidden = !inherited(h);
   const pc = h.photoCount || 0;
-  $("fPhotoInfo").textContent = pc ? `貼る場所の写真 ${pc}枚` : "貼る場所の写真はまだありません";
+  $("fPhotoInfo").innerHTML = pc ? `<b>貼る場所の写真</b><small>${pc}枚</small>` : `<b>貼る場所の写真</b><small>まだありません</small>`;
   $("fPhotoView").hidden = !pc;
-  $("fPhotoView").textContent = `写真を見る（${pc}枚）`;
+  $("fPhotoView").textContent = "写真を見る";
   $("fPhotoAdd").hidden = pc >= MAX_PHOTOS;
   if (inherited(h)) {
     const py = Object.keys(h.years || {}).map(Number).filter(v => v < vy() && h.years[v] && h.years[v].status).sort((a, b) => b - a)[0];
@@ -416,9 +420,9 @@ function fillSheet(force) {
   // 過去の記録
   const ys = Object.keys(h.years || {}).map(Number).filter(y => h.years[y] && (h.years[y].status || h.years[y].note)).sort((a, b) => b - a);
   $("fHist").innerHTML = ys.length
-    ? ys.map(y => { const x = h.years[y], s = stOf(x.status); return `<li${y === vy() ? ' class="now"' : ""}><b>${y}年</b><span class="hs" style="--c:${s.c}">${x.status ? s.label : "—"}</span>${x.note ? `<span class="hn">${esc(x.note)}</span>` : ""}</li>`; }).join("")
+    ? ys.map(y => { const x = h.years[y], s = stOf(x.status); return `<li${y === vy() ? ' class="now"' : ""}><b>${y}</b><span class="hs" style="--c:${s.c};--bgc:${s.bg}"><i></i>${x.status ? s.label : "—"}</span>${x.note ? `<span class="hn">${esc(x.note)}</span>` : ""}</li>`; }).join("")
     : `<li class="empty">まだ記録はありません</li>`;
-  $("fMeta").textContent = r && r.updatedAt ? `${vy()}年の最終更新 ${fmt(r.updatedAt)}${r.updatedBy ? "・" + r.updatedBy : ""}${h._pending ? "（未送信）" : ""}` : "";
+  $("fMeta").textContent = r && r.updatedAt ? `${fmt(r.updatedAt)}${r.updatedBy ? "・" + r.updatedBy : ""}${h._pending ? "（未送信）" : ""}` : "";
   $("hideBtn").hidden = !(allowHide() || isAdmin());
 }
 function setStatus(k) {

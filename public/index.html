@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261105-6">
+<link rel="stylesheet" href="style.css?v=20261105-7">
 </head>
 <body>
 <div class="app">
@@ -60,31 +60,52 @@
 </div>
 
 <div class="sheet" id="sheet" hidden>
+  <div class="grab" aria-hidden="true"></div>
+  <div class="sh-head">
+    <span class="sh-dot" id="fDot" aria-hidden="true"></span>
+    <input id="fName" class="sh-name" placeholder="家・お店の名前を入力" autocomplete="off" maxlength="80" aria-label="家・お店の名前">
+    <button class="icon-x" id="closeBtn" aria-label="閉じる">×</button>
+  </div>
+  <div class="sh-sub"><span class="pill" id="fPill"></span><span class="meta" id="fMeta"></span></div>
+
   <div class="sheet-scroll">
-  <input id="fName" placeholder="家・お店の名前（例：山田商店）" autocomplete="off" maxlength="80" aria-label="家・お店の名前">
-  <label class="flabel" for="fMemo">家のメモ（毎年使う情報）</label>
-  <textarea id="fMemo" class="memo" placeholder="例：裏口から声をかける、ご主人は〇〇さん" maxlength="500"></textarea>
-  <div class="photos-row">
-    <span class="photo-info" id="fPhotoInfo"></span>
-    <span class="photo-btns">
-      <button class="btn" id="fPhotoView" hidden>写真を見る</button>
-      <button class="btn" id="fPhotoAdd">📷 写真を追加</button>
-    </span>
-    <input type="file" id="fPhotoFile" accept="image/*" hidden>
+    <section class="sec">
+      <h3 class="sec-h" id="fStatusLabel">今年の状態</h3>
+      <div class="status" id="fStatus"></div>
+      <p class="inherit" id="fInherit" hidden></p>
+    </section>
+
+    <section class="sec photo-card">
+      <div class="photos-row">
+        <span class="photo-ico" aria-hidden="true">📷</span>
+        <span class="photo-info" id="fPhotoInfo"></span>
+        <span class="photo-btns">
+          <button class="btn on" id="fPhotoView" hidden>写真を見る</button>
+          <button class="btn" id="fPhotoAdd">＋ 追加</button>
+        </span>
+        <input type="file" id="fPhotoFile" accept="image/*" hidden>
+      </div>
+    </section>
+
+    <section class="sec">
+      <h3 class="sec-h"><label for="fMemo">家のメモ</label><small>毎年使う情報</small></h3>
+      <textarea id="fMemo" class="memo" placeholder="例：裏口から声をかける、ご主人は〇〇さん" maxlength="500"></textarea>
+      <h3 class="sec-h"><label for="fNote" id="fNoteLabel">今年のメモ</label><small>この年だけ</small></h3>
+      <textarea id="fNote" class="memo" placeholder="例：夕方なら在宅、20時に再訪" maxlength="500"></textarea>
+    </section>
+
+    <section class="sec">
+      <h3 class="sec-h">これまでの記録</h3>
+      <ul class="hist" id="fHist"></ul>
+    </section>
   </div>
-  <div class="status" id="fStatus"></div>
-  <p class="inherit" id="fInherit" hidden>前の年の「未訪問（不可）」を引き継いでいます</p>
-  <label class="flabel" for="fNote" id="fNoteLabel">今年のメモ</label>
-  <textarea id="fNote" placeholder="例：夕方なら在宅、20時に再訪" maxlength="500"></textarea>
-  <div class="meta" id="fMeta"></div>
-  <details class="hist"><summary>過去の記録</summary><ul id="fHist"></ul></details>
-  </div>
+
   <div class="foot">
+    <button class="link" id="moveBtn">位置を直す</button>
     <span>
       <button class="link danger" id="hideBtn">この家を非表示</button>
       <span id="hideConfirm" hidden><button class="link danger" id="hideYes">非表示にする</button> · <button class="link" id="hideNo">やめる</button></span>
     </span>
-    <span class="foot-r"><button class="link" id="moveBtn">位置を直す</button><button class="btn on" id="closeBtn">閉じる</button></span>
   </div>
 </div>
 
@@ -147,7 +168,7 @@
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="firebase-config.js?v=20261105-6"></script>
-<script src="app.js?v=20261105-6"></script>
+<script src="firebase-config.js?v=20261105-7"></script>
+<script src="app.js?v=20261105-7"></script>
 </body>
 </html>
