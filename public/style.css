@@ -152,3 +152,10 @@ textarea:disabled,.status button:disabled{opacity:.6;cursor:not-allowed}
   .top-r{gap:8px}
   .tabs button{padding:6px 11px}
 }
+
+.hid-btns,.del-btns{display:flex;gap:6px;flex:none}
+.del-ask{display:flex;flex-direction:column;gap:6px;align-items:flex-end;text-align:right}
+.del-ask small{color:var(--st-ref)!important;font-weight:700}
+.btn.danger{background:var(--st-ref);border-color:var(--st-ref);color:#fff}
+.btn.danger-ghost{color:var(--st-ref);border-color:var(--st-ref)}
+.hidden-list li{flex-wrap:wrap}

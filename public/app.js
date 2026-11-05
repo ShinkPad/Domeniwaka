@@ -70,6 +70,7 @@ async function createFirebaseStore(team, onSync) {
     },
     add(data) { const ref = fs.doc(col); fs.setDoc(ref, data).catch(err); return ref.id; },
     update(id, patch) { return fs.updateDoc(fs.doc(col, id), patch).catch(e => { err(e); throw e; }); },
+    remove(id) { return fs.deleteDoc(fs.doc(col, id)).catch(e => { err(e); throw e; }); },
     subscribeMembers(cb) { fs.onSnapshot(mcol, s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => {}); },
     setMember(data) { if (auth.currentUser) fs.setDoc(fs.doc(mcol, auth.currentUser.uid), data).catch(console.error); },
     removeMember() { if (auth.currentUser) fs.deleteDoc(fs.doc(mcol, auth.currentUser.uid)).catch(console.error); },
@@ -101,6 +102,7 @@ function createLocalStore(team, onSync) {
     subscribe(cb) { H.sub(o => { cb(Object.entries(o).map(([id, v]) => ({ id, ...v }))); onSync("local"); }); },
     add(data) { const id = "h" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); H.write(o => { o[id] = data; }); return id; },
     update(id, patch) { H.write(o => { if (o[id]) for (const [k, v] of Object.entries(patch)) setPath(o[id], k, v); }); return Promise.resolve(); },
+    remove(id) { H.write(o => { delete o[id]; }); return Promise.resolve(); },
     subscribeMembers(cb) { M.sub(o => cb(Object.entries(o).map(([id, v]) => ({ id, ...v })))); },
     setMember(data) { M.write(o => { o[myMid] = data; }); },
     removeMember() { M.write(o => { delete o[myMid]; }); },
@@ -480,7 +482,11 @@ function renderAdmin() {
     $("aAllowHide").checked = allowHide();
     const hid = houses.filter(h => h.hidden);
     $("aHidden").innerHTML = hid.length
-      ? hid.map(h => `<li><span><b>${esc(h.name || "（名前なし）")}</b><small>${esc(h.hiddenBy || "")}${h.hiddenAt ? "・" + fmt(h.hiddenAt) : ""}</small></span><button class="btn" data-restore="${esc(h.id)}">元に戻す</button></li>`).join("")
+      ? hid.map(h => `<li><span><b>${esc(h.name || "（名前なし）")}</b><small>${esc(h.hiddenBy || "")}${h.hiddenAt ? "・" + fmt(h.hiddenAt) : ""}</small></span>`
+        + (pendingDelete === h.id
+          ? `<span class="del-ask"><small>過去の記録もすべて消え、元に戻せません</small><span class="del-btns"><button class="btn danger" data-delete-yes="${esc(h.id)}">完全に削除</button><button class="btn" data-delete-no="1">やめる</button></span></span>`
+          : `<span class="hid-btns"><button class="btn" data-restore="${esc(h.id)}">元に戻す</button><button class="btn danger-ghost" data-delete="${esc(h.id)}">削除</button></span>`)
+        + `</li>`).join("")
       : `<li class="empty">非表示の家はありません</li>`;
   }
   const lg = $("aLogin"); if (lg) lg.onclick = async () => {
@@ -506,8 +512,18 @@ $("aAllowHide").onchange = async () => {
   try { await store.setTeam({ allowHide: $("aAllowHide").checked }); toast($("aAllowHide").checked ? "メンバーも家を非表示にできます" : "家の非表示は管理者だけになりました"); }
   catch (e) { err(e); $("aAllowHide").checked = allowHide(); }
 };
+let pendingDelete = null;
 $("aHidden").onclick = e => {
-  const id = e.target.dataset && e.target.dataset.restore; if (!id) return;
+  const ds = e.target.dataset || {};
+  if (ds.delete) { pendingDelete = ds.delete; renderAdmin(); return; }
+  if (ds.deleteNo) { pendingDelete = null; renderAdmin(); return; }
+  if (ds.deleteYes) {
+    const did = ds.deleteYes, h = houses.find(x => x.id === did); pendingDelete = null;
+    houses = houses.filter(x => x.id !== did); renderAll();
+    store.remove(did).then(() => toast(`${(h && h.name) || "家"}を完全に削除しました`)).catch(() => { if (h) houses.push(h); renderAll(); });
+    return;
+  }
+  const id = ds.restore; if (!id) return;
   const h = houses.find(x => x.id === id); if (!h) return;
   h.hidden = false; renderAll();
   store.update(id, { hidden: false, updatedAt: Date.now(), updatedBy: myName }).then(() => toast("元に戻しました")).catch(() => { h.hidden = true; renderAll(); });
