@@ -596,10 +596,12 @@ function startSetup() {
   } else {
     $("joinBtn").onclick = () => {
       const c = $("teamCode").value.trim().toLowerCase().replace(/^.*team=/, "");
-      if (!validCode(c)) return showErr("合言葉は英小文字と数字（8文字以上）です。リンクをもらった人はリンクから開いてください。");
+      if (!validCode(c)) return showErr("合言葉が正しくありません。LINEで届いた招待リンクから開くか、リンクをそのまま貼り付けてください。");
       saveName() && begin(c);
     };
-    $("newTeamBtn").onclick = () => saveName() && begin(newCode(), true);
+    // チームは1つだけ使う運用なので、画面から新しいチームは作れないようにしている。
+    // 新しいチームが必要になったら、ブラウザのコンソールで niwakadomeNewTeam() を実行する。
+    window.niwakadomeNewTeam = () => saveName() && begin(newCode(), true);
   }
   $("setup").hidden = false;
   setTimeout(() => $("myName").focus(), 50);

@@ -159,3 +159,5 @@ textarea:disabled,.status button:disabled{opacity:.6;cursor:not-allowed}
 .btn.danger{background:var(--st-ref);border-color:var(--st-ref);color:#fff}
 .btn.danger-ghost{color:var(--st-ref);border-color:var(--st-ref)}
 .hidden-list li{flex-wrap:wrap}
+
+.modal .small{font-size:12px;margin-top:-4px}

@@ -112,12 +112,10 @@
     <label for="myName">あなたの名前</label>
     <input id="myName" placeholder="例：しんくん" maxlength="30" autocomplete="nickname">
     <div id="teamBox">
-      <label for="teamCode">チームの合言葉（リンクをもらった人は自動で入ります）</label>
-      <input id="teamCode" placeholder="もらった合言葉を入力" autocomplete="off">
-      <div class="row2">
-        <button class="btn on" id="joinBtn">このチームに入る</button>
-        <button class="btn" id="newTeamBtn">新しいチームを作る</button>
-      </div>
+      <label for="teamCode">チームの合言葉</label>
+      <p class="small">LINEで届いた招待リンクから開くと、合言葉なしで自動で入れます。ここには合言葉か、招待リンクをそのまま貼り付けてください。</p>
+      <input id="teamCode" placeholder="合言葉または招待リンク" autocomplete="off">
+      <button class="btn on" id="joinBtn">チームに入る</button>
     </div>
     <button class="btn on" id="nameOnlyBtn" hidden>はじめる</button>
     <p class="err" id="setupErr" hidden></p>
