@@ -111,3 +111,12 @@ teams/{合言葉}/houses/{id}    … name, lat, lng, memo（家のメモ）, hid
                                  years: { "2026": { status, note, updatedAt, updatedBy }, "2027": {...} }
 teams/{合言葉}/members/{uid}  … 位置を共有中のメンバー
 ```
+
+## ファイルを書き換えたとき（大事）
+`public/index.html` の下のほうにある `?v=20261105-2` のような番号を、**毎回新しい番号に変える**（例：日付＋連番）。
+```
+<link rel="stylesheet" href="style.css?v=20261105-2">
+<script src="firebase-config.js?v=20261105-2"></script>
+<script src="app.js?v=20261105-2"></script>
+```
+番号を変えないと、スマホのブラウザが古いファイルと新しいファイルを混ぜて読み込み、アプリが途中で止まる（「準備中」のまま動かない）ことがある。
