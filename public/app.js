@@ -357,9 +357,6 @@ ST.forEach(s => {
   b.dataset.k = s.k; b.textContent = s.label; b.style.setProperty("--c", s.c);
   b.onclick = () => {
     if (isPast()) return;
-    // 夜9時前に「俄留を貼った」を押したら確認する
-    if (s.k === "done" && !canPost() && effStatus(cur()) !== "done") { $("postWarn").hidden = false; return; }
-    $("postWarn").hidden = true;
     setStatus(s.k);
   };
   fS.appendChild(b);
@@ -369,7 +366,7 @@ const fmt = t => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDat
 function openSheet(id) {
   if (selId && selId !== id) saveText();
   selId = id; $("sheet").hidden = false;
-  $("hideConfirm").hidden = true; $("postWarn").hidden = true;
+  $("hideConfirm").hidden = true;
   fillSheet(true); renderPins();
 }
 function closeSheet() { saveText(); selId = null; $("sheet").hidden = true; setMode(null); renderPins(); }
@@ -425,8 +422,6 @@ function saveText() {
 }
 ["fName", "fMemo", "fNote"].forEach(id => $(id).addEventListener("change", saveText));
 $("closeBtn").onclick = closeSheet;
-$("warnRcv").onclick = () => { $("postWarn").hidden = true; setStatus("received"); };
-$("warnDone").onclick = () => { $("postWarn").hidden = true; setStatus("done"); };
 $("notice").onclick = () => { filter = new Set(["received"]); setView("list"); renderAll(); };
 setInterval(() => { renderChips(); renderList(); }, 60 * 1000); // 9時になったら表示を切り替える
 
