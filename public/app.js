@@ -1,7 +1,8 @@
 (() => {
 const firebaseConfig = window.NIWAKA_FIREBASE_CONFIG || {};
 const startView = window.NIWAKA_START_VIEW || { lat: 35.0730, lng: 133.7535, zoom: 16 };
-const ADMIN_EMAILS = (window.NIWAKA_ADMIN_EMAILS || []).map(s => String(s).trim().toLowerCase());
+// 管理者のメールアドレスは公開ファイルには書かない。サーバー（Firestore のルール）だけが知っていて、
+// アプリは「管理者だけが読める場所」を読めるかどうかで管理者かを判定する。
 
 /* ============ 状態の種類 ============ */
 // "todo" は以前の「未訪問」と同じ扱い（＝未訪問・可）
@@ -58,6 +59,12 @@ async function createFirebaseStore(team, onSync) {
     get memberId() { return auth.currentUser && auth.currentUser.uid; },
     user() { const u = auth.currentUser; return { email: u && !u.isAnonymous ? (u.email || "").toLowerCase() : "", anon: !u || u.isAnonymous }; },
     onAuth(cb) { A.onAuthStateChanged(auth, () => cb()); },
+    // 管理者だけが読めるドキュメントを読んでみて、読めたら管理者
+    async checkAdmin() {
+      const u = auth.currentUser; if (!u || u.isAnonymous) return false;
+      try { await fs.getDocFromServer(fs.doc(db, "adminProbe", "check")); return true; }
+      catch (e) { if (e.code !== "permission-denied") console.error(e); return false; }
+    },
     async signInAdmin() { await A.signInWithPopup(auth, new A.GoogleAuthProvider()); },
     async signOutAdmin() { await A.signOut(auth); await A.signInAnonymously(auth); },
     subscribeTeam(cb) { fs.onSnapshot(tdoc, s => cb(s.exists() ? s.data() : null), () => cb(null)); },
@@ -97,6 +104,7 @@ function createLocalStore(team, onSync) {
     memberId: myMid,
     user() { return { email: "", anon: true }; },
     onAuth() {},
+    async checkAdmin() { return true; },
     subscribeTeam(cb) { T.sub(o => cb(Object.keys(o).length ? o : null)); },
     setTeam(patch) { T.write(o => Object.assign(o, patch)); return Promise.resolve(); },
     subscribe(cb) { H.sub(o => { cb(Object.entries(o).map(([id, v]) => ({ id, ...v }))); onSync("local"); }); },
@@ -121,12 +129,9 @@ let teamCfg = null;                  // チーム設定（年度など）
 let viewYear = null;                 // 表示中の年度（過去の年も見られる）
 const curYear = () => (teamCfg && teamCfg.year) || yearOf();
 const allowHide = () => !teamCfg || teamCfg.allowHide !== false;
-const isAdmin = () => {
-  if (!store) return false;
-  if (!USE_FIREBASE) return true;
-  const u = store.user();
-  return !!u.email && ADMIN_EMAILS.includes(u.email);
-};
+let adminOk = false, adminChecking = false; // ログインが変わるたびにサーバーに確認して更新する
+const isAdmin = () => !!store && (!USE_FIREBASE || adminOk);
+async function refreshAdmin() { adminChecking = true; renderAll(); adminOk = store ? await store.checkAdmin() : false; adminChecking = false; renderAll(); }
 const vy = () => viewYear || curYear();
 const isPast = () => vy() !== curYear();
 
@@ -488,6 +493,7 @@ function renderAdmin() {
   let who;
   if (!USE_FIREBASE) who = `<p>お試しモードでは、管理者の操作を誰でも試せます。</p>`;
   else if (admin) who = `<p>管理者としてログイン中：<b>${esc(u.email)}</b></p><button class="link" id="aLogout">ログアウト</button>`;
+  else if (u.email && adminChecking) who = `<p>${esc(u.email)} が管理者か確認しています…</p>`;
   else if (u.email) who = `<p class="err">${esc(u.email)} は管理者として登録されていません。</p><button class="link" id="aLogout">ログアウト</button>`;
   else who = `<p>年度の切り替えや、非表示にした家を元に戻す操作は管理者だけができます。</p><button class="btn on" id="aLogin">管理者としてログイン（Google）</button>`;
   $("adminWho").innerHTML = who;
@@ -624,7 +630,7 @@ async function begin(code, isNew) {
     console.error(e); setSync("error");
     toast("接続できませんでした。設定（firebase-config.js）を確認してください"); return;
   }
-  store.onAuth(() => renderAll());
+  store.onAuth(() => { adminOk = false; renderAll(); refreshAdmin(); });
   store.subscribeTeam(t => { const before = curYear(); teamCfg = t; if (curYear() !== before) viewYear = null; renderAll(); });
   store.subscribe(list => { houses = list.filter(h => typeof h.lat === "number").map(normalize); loaded = true; renderAll(); },
     e => toast(e.code === "permission-denied" ? "読み込む権限がありません" : "データを読み込めませんでした"));

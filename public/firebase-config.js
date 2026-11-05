@@ -9,11 +9,5 @@ window.NIWAKA_FIREBASE_CONFIG = {
   appId: "1:658000378000:web:ff93e3afce09bf75c38015"
 };
 
-// 管理者の Google アカウント（メールアドレス）。ここは画面の表示用で、
-// 実際の権限は firestore.rules の admins() に同じアドレスを書いて決めます。
-window.NIWAKA_ADMIN_EMAILS = [
-  "whitehacker1pm3@gmail.com",
-];
-
 // 地図を最初に表示する場所（久世駅周辺）とズーム
 window.NIWAKA_START_VIEW = { lat: 35.0730, lng: 133.7535, zoom: 16 };

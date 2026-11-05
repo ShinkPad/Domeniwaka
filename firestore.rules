@@ -2,10 +2,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ★ 管理者の Google アカウント。firebase-config.js の NIWAKA_ADMIN_EMAILS と同じものを書く
+    // ★ 管理者の Google アカウントのメールアドレス（小文字で書く）。
+    //   公開リポジトリには載せないこと。実際のアドレスは Firebase コンソールのルールにだけ書く。
     function admins() {
       return [
-        'whitehacker1pm3@gmail.com'
+        'admin@example.com'
       ];
     }
     function authed() { return request.auth != null; }
@@ -13,6 +14,11 @@ service cloud.firestore {
       return authed()
         && request.auth.token.get('email_verified', false) == true
         && request.auth.token.get('email', '').lower() in admins();
+    }
+
+    // 管理者かどうかの確認用。管理者だけが読める（中身は空でよい）
+    match /adminProbe/{doc} {
+      allow get: if isAdmin();
     }
 
     // チームの合言葉（URL の ?team=…）を知っている人だけが、そのチームを読み書きできる。

@@ -38,21 +38,20 @@ niwakadome-map/
 > `apiKey` などは公開しても問題ない値（アクセス制限は firestore.rules で行う）。
 
 ### 1.5 管理者を決める
-管理者の Google アカウントのメールアドレスを **2か所** に書く。
-- `public/firebase-config.js` の `NIWAKA_ADMIN_EMAILS` … 画面に管理者用の操作を出すため
-- `firestore.rules` の `admins()` … 実際の権限（ここに書いた人しか年度切り替えや復元ができない）
-
-```js
-// firebase-config.js
-window.NIWAKA_ADMIN_EMAILS = ["shinkun@gmail.com", "kaicho@gmail.com"];
+管理者の Google アカウントのメールアドレスは、**Firebase コンソールのルールにだけ** 書く（公開リポジトリや公開ファイルには書かない）。
+1. Firebase コンソール →「Firestore Database」→「ルール」を開く
+2. `function admins()` の中にアドレスを小文字で並べて「公開」を押す
 ```
-```
-// firestore.rules
 function admins() {
-  return ['shinkun@gmail.com', 'kaicho@gmail.com'];
+  return [
+    'shinkun@gmail.com',
+    'kaicho@example.co.jp'
+  ];
 }
 ```
-管理者を増やしたり減らしたりしたら、両方を直して `firebase deploy` し直す。
+- Gmail 以外のアドレスでも、そのアドレスで作った Google アカウントなら使える
+- アプリは「管理者だけが読める場所（adminProbe）」を読めるかどうかで管理者かを判定するので、アプリ側の変更はいらない
+- リポジトリの `firestore.rules` はアドレスを伏せた見本。ルールを直したら、アドレス以外の部分はこのファイルにもそろえておく
 
 ### 2. Firebase CLI で公開する
 Node.js が入っていれば：
