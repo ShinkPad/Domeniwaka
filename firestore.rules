@@ -58,7 +58,7 @@ service cloud.firestore {
         allow delete: if okTeam() && isAdmin();
       }
 
-      // 俄留を貼る場所の写真（1軒2枚まで・1枚あたり約300KBまで）。チーム内なら誰でも追加・削除できる
+      // 俄留を貼る場所の写真。チーム内なら誰でも追加・削除できる（ここは以前の、まとめて保存する形）
       match /photos/{house} {
         function okPhoto(i) {
           let l = request.resource.data.list;
@@ -68,6 +68,14 @@ service cloud.firestore {
         allow create, update: if okTeam() && request.resource.data.list is list
           && request.resource.data.list.size() <= 2 && okPhoto(0) && okPhoto(1);
         allow delete: if okTeam();
+
+        // 新しい形：写真1枚ごとに1ドキュメント（1枚あたり約300KBまで）
+        match /items/{pid} {
+          allow get, list: if okTeam();
+          allow create: if okTeam() && request.resource.data.data is string
+            && request.resource.data.data.size() <= 350000;
+          allow delete: if okTeam();
+        }
       }
 
       // メンバーの現在地：チーム内なら誰でも見られる。書き込み・削除は本人だけ。

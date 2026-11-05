@@ -85,16 +85,28 @@ async function createFirebaseStore(team, onSync) {
     subscribeMembers(cb) { fs.onSnapshot(mcol, s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => {}); },
     setMember(data) { if (auth.currentUser) fs.setDoc(fs.doc(mcol, auth.currentUser.uid), data).catch(console.error); },
     removeMember() { if (auth.currentUser) fs.deleteDoc(fs.doc(mcol, auth.currentUser.uid)).catch(console.error); },
-    // 写真は家とは別の場所（photos/{家のid}）に置き、見るときだけ読み込む
+    // 写真は家とは別の場所に1枚ずつ置き（photos/{家のid}/items/{写真のid}）、見るときだけ読み込む。
+    // 以前の形（photos/{家のid} に list でまとめて保存）の写真もそのまま読める。
     async getPhotos(id) {
-      const ref = fs.doc(db, "teams", team, "photos", id);
-      let snap; try { snap = await fs.getDocFromServer(ref); } catch (e) { if (e.code === "permission-denied") throw e; snap = await fs.getDoc(ref); }
-      return snap.exists() ? (snap.data().list || []) : [];
+      const pref = fs.doc(db, "teams", team, "photos", id), icol = fs.collection(pref, "items");
+      const fresh = async (fromServer, fromCache, arg) => { try { return await fromServer(arg); } catch (e) { if (e.code === "permission-denied") throw e; return await fromCache(arg); } };
+      const [ps, is] = await Promise.all([fresh(fs.getDocFromServer, fs.getDoc, pref), fresh(fs.getDocsFromServer, fs.getDocs, icol)]);
+      const legacy = ps.exists() ? (ps.data().list || []).map((x, i) => ({ ...x, pid: "legacy-" + i, legacy: true })) : [];
+      return [...legacy, ...is.docs.map(d => ({ pid: d.id, ...d.data() }))].sort((a, b) => (a.at || 0) - (b.at || 0));
     },
-    setPhotos(id, list) {
-      const ref = fs.doc(db, "teams", team, "photos", id);
-      const p = list.length ? fs.setDoc(ref, { list, updatedAt: Date.now() }) : fs.deleteDoc(ref);
-      return p.catch(e => { err(e); throw e; });
+    addPhoto(id, item) { return fs.setDoc(fs.doc(fs.collection(db, "teams", team, "photos", id, "items")), item).catch(e => { err(e); throw e; }); },
+    removePhoto(id, photo, all) {
+      if (photo.legacy) {
+        const ref = fs.doc(db, "teams", team, "photos", id);
+        const rest = all.filter(x => x.legacy && x.pid !== photo.pid).map(({ data, at, by }) => ({ data, at, by }));
+        return (rest.length ? fs.setDoc(ref, { list: rest, updatedAt: Date.now() }) : fs.deleteDoc(ref)).catch(e => { err(e); throw e; });
+      }
+      return fs.deleteDoc(fs.doc(db, "teams", team, "photos", id, "items", photo.pid)).catch(e => { err(e); throw e; });
+    },
+    async removeAllPhotos(id) {
+      const all = await this.getPhotos(id);
+      await Promise.all(all.filter(x => !x.legacy).map(x => fs.deleteDoc(fs.doc(db, "teams", team, "photos", id, "items", x.pid))));
+      await fs.deleteDoc(fs.doc(db, "teams", team, "photos", id));
     },
   };
 }
@@ -129,8 +141,10 @@ function createLocalStore(team, onSync) {
     subscribeMembers(cb) { M.sub(o => cb(Object.entries(o).map(([id, v]) => ({ id, ...v })))); },
     setMember(data) { M.write(o => { o[myMid] = data; }); },
     removeMember() { M.write(o => { delete o[myMid]; }); },
-    async getPhotos(id) { return (P.read()[id] || []); },
-    setPhotos(id, list) { try { P.write(o => { if (list.length) o[id] = list; else delete o[id]; }); return Promise.resolve(); } catch (e) { toast("この端末には写真を保存できませんでした（容量不足）"); return Promise.reject(e); } },
+    async getPhotos(id) { return (P.read()[id] || []).map((x, i) => ({ pid: x.pid || "p" + i, ...x })); },
+    addPhoto(id, item) { try { P.write(o => { (o[id] = o[id] || []).push({ pid: "p" + Date.now().toString(36), ...item }); }); return Promise.resolve(); } catch (e) { toast("この端末には写真を保存できませんでした（容量不足）"); return Promise.reject(e); } },
+    removePhoto(id, photo) { P.write(o => { o[id] = (o[id] || []).filter((x, i) => (x.pid || "p" + i) !== photo.pid); if (!o[id].length) delete o[id]; }); return Promise.resolve(); },
+    async removeAllPhotos(id) { P.write(o => { delete o[id]; }); },
   };
 }
 function err(e) {
@@ -453,8 +467,8 @@ $("hideYes").onclick = () => {
 $("moveBtn").onclick = () => setMode("move");
 
 /* ============ 貼る場所の写真 ============ */
-// 1軒2枚まで。スマホで撮った写真を横1000px前後・約100KBのJPEGに縮めてから保存する（無料枠で使えるように）
-const MAX_PHOTOS = 2;
+// 1軒 MAX_PHOTOS 枚まで（増やしたいときはこの数字を変える）。スマホで撮った写真を横1000px前後・約100KBのJPEGに縮めてから保存する（無料枠で使えるように）
+const MAX_PHOTOS = 5;
 function loadImage(file) {
   return new Promise((res, rej) => { const u = URL.createObjectURL(file), i = new Image(); i.onload = () => { URL.revokeObjectURL(u); res(i); }; i.onerror = () => { URL.revokeObjectURL(u); rej(new Error("画像を読み込めません")); }; i.src = u; });
 }
@@ -480,11 +494,11 @@ $("fPhotoFile").onchange = async () => {
     const data = await shrinkPhoto(file);
     const list = await store.getPhotos(hid);
     if (list.length >= MAX_PHOTOS) { toast(`写真は${MAX_PHOTOS}枚までです。いらない写真を削除してから追加してください`); return; }
-    list.push({ data, at: Date.now(), by: myName });
-    await store.setPhotos(hid, list);
-    const hh = houses.find(x => x.id === hid); if (hh) hh.photoCount = list.length;
+    await store.addPhoto(hid, { data, at: Date.now(), by: myName });
+    const n = list.length + 1;
+    const hh = houses.find(x => x.id === hid); if (hh) hh.photoCount = n;
     renderAll();
-    await store.update(hid, { photoCount: list.length, updatedAt: Date.now(), updatedBy: myName });
+    await store.update(hid, { photoCount: n, updatedAt: Date.now(), updatedBy: myName });
     toast("写真を保存しました");
   } catch (e) { console.error(e); if (e && !e.code) toast(e.message === "写真が大きすぎます" ? "写真を小さくできませんでした。別の写真で試してください" : "写真を読み込めませんでした"); }
 };
@@ -516,9 +530,9 @@ $("pvNext").onclick = () => { viewer.i = (viewer.i + 1) % viewer.list.length; vi
 $("pvDel").onclick = () => { viewer.asking = true; renderViewer(); };
 $("pvDelNo").onclick = () => { viewer.asking = false; renderViewer(); };
 $("pvDelYes").onclick = async () => {
-  const id = viewer.id, list = viewer.list.slice(); list.splice(viewer.i, 1);
+  const id = viewer.id, all = viewer.list, target = all[viewer.i], list = all.filter(x => x !== target);
   try {
-    await store.setPhotos(id, list);
+    await store.removePhoto(id, target, all);
     viewer.list = list; viewer.i = Math.max(0, Math.min(viewer.i, list.length - 1)); viewer.asking = false;
     const hh = houses.find(x => x.id === id); if (hh) hh.photoCount = list.length;
     renderAll(); renderViewer();
@@ -632,7 +646,7 @@ $("aHidden").onclick = e => {
   if (ds.deleteYes) {
     const did = ds.deleteYes, h = houses.find(x => x.id === did); pendingDelete = null;
     houses = houses.filter(x => x.id !== did); renderAll();
-    if (h && h.photoCount) store.setPhotos(did, []).catch(() => {});
+    if (h && h.photoCount) store.removeAllPhotos(did).catch(() => {});
     store.remove(did).then(() => toast(`${(h && h.name) || "家"}を完全に削除しました`)).catch(() => { if (h) houses.push(h); renderAll(); });
     return;
   }
