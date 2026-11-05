@@ -5,15 +5,14 @@ service cloud.firestore {
     // ★ 管理者の Google アカウント。firebase-config.js の NIWAKA_ADMIN_EMAILS と同じものを書く
     function admins() {
       return [
-        // 'example@gmail.com',
+        'whitehacker1pm3@gmail.com'
       ];
     }
     function authed() { return request.auth != null; }
     function isAdmin() {
       return authed()
-        && request.auth.token.email != null
-        && request.auth.token.email_verified == true
-        && request.auth.token.email.lower() in admins();
+        && request.auth.token.get('email_verified', false) == true
+        && request.auth.token.get('email', '').lower() in admins();
     }
 
     // チームの合言葉（URL の ?team=…）を知っている人だけが、そのチームを読み書きできる。
