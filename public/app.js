@@ -184,7 +184,7 @@ $("locBtn").onclick = () => map.locate({ setView: true, maxZoom: 18, enableHighA
 // 10分以上更新がない人は表示しない（アプリを閉じたまま放置した場合など）。
 // 送信は60秒に1回まで。立ち止まっている（10m未満しか動いていない）ときは5分に1回だけ送る。
 // Firestore の無料枠（1日 読み込み5万回）を超えないように回数を抑えている。
-const STALE_MS = 10 * 60 * 1000, SEND_EVERY_MS = 60 * 1000, IDLE_SEND_MS = 5 * 60 * 1000, MIN_MOVE_M = 10;
+const STALE_MS = 7 * 60 * 1000, SEND_EVERY_MS = 60 * 1000, IDLE_SEND_MS = 5 * 60 * 1000, MIN_MOVE_M = 10;
 let members = [], sharing = false, watchId = null, lastSent = 0, lastPos = null;
 const memberMarkers = new Map();
 const ago = t => { const m = Math.floor((Date.now() - t) / 60000); return m < 1 ? "今" : m + "分前"; };
@@ -210,7 +210,9 @@ function renderMembers() {
   $("memCount").hidden = !others;
 }
 setInterval(renderMembers, 30 * 1000);
+let away = false; // 画面を消した・別のアプリに切り替えた間は送らない
 function sendPos(p, force) {
+  if (away || !sharing) return;
   const now = Date.now();
   const moved = lastPos ? map.distance(lastPos, [p.coords.latitude, p.coords.longitude]) : Infinity;
   const elapsed = now - lastSent;
@@ -237,6 +239,18 @@ function setSharing(on) {
 }
 function updateShareBtn() { $("shareLocBtn").classList.toggle("on", sharing); $("shareLocBtn").setAttribute("aria-pressed", sharing); }
 $("shareLocBtn").onclick = () => setSharing(!sharing);
+// 画面を消したり別のアプリに切り替えたりしたら、すぐ自分の位置を消す（ページがまだ動いているうちに消すので確実に届く）。
+// 戻ってきたら位置を取り直して、共有を自動で再開する。
+document.addEventListener("visibilitychange", () => {
+  if (!sharing || !store) return;
+  if (document.visibilityState === "hidden") {
+    away = true; lastPos = null;
+    store.removeMember();
+  } else {
+    away = false;
+    navigator.geolocation.getCurrentPosition(p => sendPos(p, true), () => {}, { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 });
+  }
+});
 addEventListener("pagehide", () => { if (sharing && store) store.removeMember(); });
 
 map.on("click", e => {
