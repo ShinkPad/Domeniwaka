@@ -791,15 +791,9 @@ $("aHidden").onclick = e => {
   store.update(id, { hidden: false, updatedAt: Date.now(), updatedBy: myName }).then(() => toast("元に戻しました")).catch(() => { h.hidden = true; renderAll(); });
 };
 
-/* ============ 設定（文字の大きさ・名前） ============ */
-function applyFs(v) {
-  const z = [1, 1.15, 1.3].includes(+v) ? +v : 1;
-  document.documentElement.style.setProperty("--z", z);
-  $("fsSeg").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.fs === z));
-  if (peek) setPeek(true);
-}
-applyFs(ls.get("niwakadome:fs") || 1);
-$("fsSeg").onclick = e => { const v = e.target.dataset && e.target.dataset.fs; if (!v) return; ls.set("niwakadome:fs", v); applyFs(v); };
+/* ============ 設定（名前） ============ */
+// 文字の大きさの設定は一旦なくした（以前「大きめ・特大」にしていた人も標準に戻す）
+try { localStorage.removeItem("niwakadome:fs"); } catch {}
 $("setNameSave").onclick = () => {
   const n = $("setName").value.trim(); if (!n) { toast("名前を入れてください"); return; }
   myName = n; ls.set("niwakadome:name", n); toast("名前を変更しました");
