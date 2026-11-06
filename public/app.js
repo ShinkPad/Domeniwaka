@@ -466,6 +466,10 @@ function fillSheet(force) {
     : `<li class="empty">まだ記録はありません</li>`;
   $("fMeta").textContent = r && r.updatedAt ? `${fmt(r.updatedAt)}${r.updatedBy ? "・" + r.updatedBy : ""}${h._pending ? "（未送信）" : ""}` : "";
   $("hideBtn").hidden = !(allowHide() || isAdmin());
+  // ピンの座標から Google マップを開くリンク（スマホでは Google マップのアプリが開く）
+  const ll = `${h.lat.toFixed(6)},${h.lng.toFixed(6)}`;
+  $("fGmap").href = `https://www.google.com/maps/search/?api=1&query=${ll}`;
+  $("fGdir").href = `https://www.google.com/maps/dir/?api=1&destination=${ll}`;
 }
 function setStatus(k) {
   const h = cur(); if (!h || !store || isPast()) return;

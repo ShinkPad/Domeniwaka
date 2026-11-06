@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261106-1">
+<link rel="stylesheet" href="style.css?v=20261106-2">
 </head>
 <body>
 <div class="app">
@@ -96,6 +96,11 @@
       <textarea id="fNote" class="memo" placeholder="例：夕方なら在宅、20時に再訪" maxlength="500"></textarea>
     </section>
 
+    <section class="sec gmap">
+      <a class="btn gbtn" id="fGmap" href="#" target="_blank" rel="noopener">Googleマップで開く</a>
+      <a class="btn gbtn on" id="fGdir" href="#" target="_blank" rel="noopener">ここまでの道順</a>
+    </section>
+
     <section class="sec">
       <h3 class="sec-h">これまでの記録</h3>
       <ul class="hist" id="fHist"></ul>
@@ -170,7 +175,7 @@
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="firebase-config.js?v=20261106-1"></script>
-<script src="app.js?v=20261106-1"></script>
+<script src="firebase-config.js?v=20261106-2"></script>
+<script src="app.js?v=20261106-2"></script>
 </body>
 </html>
