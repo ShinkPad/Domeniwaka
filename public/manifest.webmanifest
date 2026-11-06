@@ -1,6 +1,6 @@
 {
-  "name": "俄留マップ（試作版）",
-  "short_name": "俄留マップ試作",
+  "name": "俄留マップ",
+  "short_name": "俄留マップ",
   "description": "久世祭りのお花回りで、俄留を貼った家をチームで共有する地図",
   "lang": "ja",
   "display": "standalone",

@@ -29,6 +29,7 @@ const ls = {
   set(k, v) { try { localStorage.setItem(k, v); } catch {} },
 };
 const USE_FIREBASE = !!(firebaseConfig.apiKey && firebaseConfig.projectId);
+const DEL = { __delete: true }; // update でこの値を渡すと、その項目を消す（「元に戻す」で使う）
 
 /* ============ データの保存先 ============ */
 // データの形
@@ -80,7 +81,10 @@ async function createFirebaseStore(team, onSync) {
       }, e => { onSync("error"); onErr && onErr(e); });
     },
     add(data) { const ref = fs.doc(col); fs.setDoc(ref, data).catch(err); return ref.id; },
-    update(id, patch) { return fs.updateDoc(fs.doc(col, id), patch).catch(e => { err(e); throw e; }); },
+    update(id, patch) {
+      const p = {}; for (const [k, v] of Object.entries(patch)) p[k] = v === DEL ? fs.deleteField() : v;
+      return fs.updateDoc(fs.doc(col, id), p).catch(e => { err(e); throw e; });
+    },
     remove(id) { return fs.deleteDoc(fs.doc(col, id)).catch(e => { err(e); throw e; }); },
     subscribeMembers(cb) { fs.onSnapshot(mcol, s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => {}); },
     setMember(data) { if (auth.currentUser) fs.setDoc(fs.doc(mcol, auth.currentUser.uid), data).catch(console.error); },
@@ -122,7 +126,7 @@ function createLocalStore(team, onSync) {
     return { read, write(fn) { const o = read(); fn(o); ls.set(key, JSON.stringify(o)); emit(); }, sub(cb) { subs.push(cb); setTimeout(emit, 0); } };
   };
   const H = mk("houses"), M = mk("members"), T = mk("team"), P = mk("photos");
-  const setPath = (o, path, v) => { const ks = path.split("."); let x = o; ks.slice(0, -1).forEach(k => { if (typeof x[k] !== "object" || !x[k]) x[k] = {}; x = x[k]; }); x[ks[ks.length - 1]] = v; };
+  const setPath = (o, path, v) => { const ks = path.split("."); let x = o; ks.slice(0, -1).forEach(k => { if (typeof x[k] !== "object" || !x[k]) x[k] = {}; x = x[k]; }); if (v === DEL) delete x[ks[ks.length - 1]]; else x[ks[ks.length - 1]] = v; };
   let myMid = null;
   try { myMid = sessionStorage.getItem("niwakadome:mid"); } catch {}
   myMid = myMid || ("m" + Math.random().toString(36).slice(2, 10));
@@ -301,7 +305,7 @@ function pinIcon(h) {
   const cls = "pin" + (h.id === selId ? " sel" : "") + (h._pending ? " pending" : "");
   return L.divIcon({
     className: "pin-icon", iconSize: [0, 0], iconAnchor: [0, 0],
-    html: `<div class="${cls}" style="--c:${stOf(effStatus(h)).c};--bgc:${stOf(effStatus(h)).bg}"><i class="head"></i><span class="lbl">${esc(h.name || "（名前なし）")}${h.photoCount ? " 📷" : ""}</span></div>`,
+    html: `<div class="${cls}" style="--c:${stOf(effStatus(h)).c};--bgc:${stOf(effStatus(h)).bg}"><i class="head"></i><span class="lbl">${esc(h.name || "（名前なし）")}</span></div>`,
   });
 }
 function renderPins() {
@@ -324,9 +328,56 @@ function renderPins() {
 }
 
 /* ============ 集計・一覧 ============ */
-const visible = () => shown().filter(h => filter.has(effStatus(h)));
+// 一覧・地図の絞り込み（検索・班・去年の結果）と並び順
+let q = "", grpF = ls.get("niwakadome:grp") || "", lastF = "", sortBy = ls.get("niwakadome:sort") || "smart", myLoc = null, myLocAt = 0;
+const kana = s => String(s || "").toLowerCase().replace(/[\u30a1-\u30f6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60)); // カタカナ→ひらがな
+const groups = () => [...new Set(houses.filter(h => !h.hidden && h.group).map(h => h.group))].sort((a, b) => a.localeCompare(b, "ja", { numeric: true }));
+const LAST_LABEL = { gave: "去年お花をくれた", absent: "去年不在だった", refused: "去年断られた" };
+function extraOk(h) {
+  if (q) {
+    const t = kana([h.name, h.memo, (rec(h) || {}).note, h.group].join(" "));
+    if (!kana(q).split(/\s+/).filter(Boolean).every(w => t.includes(w))) return false;
+  }
+  if (grpF && (grpF === "__none" ? !!h.group : (h.group || "") !== grpF)) return false;
+  if (lastF) {
+    const pr = rec(h, vy() - 1), ps = pr && pr.status;
+    if (lastF === "gave" ? !(ps === "received" || ps === "done") : ps !== lastF) return false;
+  }
+  return true;
+}
+const base = () => shown().filter(extraOk);
+const visible = () => base().filter(h => filter.has(effStatus(h)));
+function renderFilters() {
+  const gs = groups(), sel = $("grpSel");
+  const opts = [["", "すべての班"], ...gs.map(g => [g, g]), ["__none", "班なし"]];
+  if (grpF && grpF !== "__none" && !gs.includes(grpF)) opts.splice(1, 0, [grpF, grpF]);
+  sel.innerHTML = opts.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("");
+  sel.value = grpF; $("lastSel").value = lastF; $("sortSel").value = sortBy;
+  if ($("q").value !== q) $("q").value = q;
+  $("grpList").innerHTML = gs.map(g => `<option value="${esc(g)}"></option>`).join("");
+  const parts = [];
+  if (q) parts.push(`「${q}」`);
+  if (grpF) parts.push(grpF === "__none" ? "班なし" : grpF);
+  if (lastF) parts.push(LAST_LABEL[lastF]);
+  $("fbar").hidden = !parts.length;
+  $("fbarText").textContent = parts.length ? `絞り込み中：${parts.join("・")}（${base().length}軒）` : "";
+}
+let qt;
+$("q").addEventListener("input", () => { clearTimeout(qt); qt = setTimeout(() => { q = $("q").value.trim(); renderAll(); }, 150); });
+$("grpSel").onchange = () => { grpF = $("grpSel").value; ls.set("niwakadome:grp", grpF); renderAll(); };
+$("lastSel").onchange = () => { lastF = $("lastSel").value; renderAll(); };
+$("sortSel").onchange = () => { sortBy = $("sortSel").value; ls.set("niwakadome:sort", sortBy); if (sortBy === "near") locateMe(true); renderAll(); };
+$("fbarClear").onclick = () => { q = ""; grpF = ""; lastF = ""; ls.set("niwakadome:grp", ""); renderAll(); };
+// 近い順のための現在地（1分以内に取ったものは使い回す）
+function locateMe(force) {
+  if (!navigator.geolocation) { toast("この端末では現在地を使えません"); return; }
+  if (!force && myLoc && Date.now() - myLocAt < 60000) return;
+  navigator.geolocation.getCurrentPosition(p => { myLoc = [p.coords.latitude, p.coords.longitude]; myLocAt = Date.now(); renderList(); },
+    () => { if (force) toast("現在地を取得できませんでした。位置情報を許可すると近い順に並びます"); }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+}
+const distTxt = m => m < 1000 ? `${Math.round(m / 10) * 10}m` : `${(m / 1000).toFixed(1)}km`;
 function renderChips() {
-  const cnt = {}; ST.forEach(s => cnt[s.k] = 0); shown().forEach(h => cnt[effStatus(h)]++);
+  const cnt = {}; ST.forEach(s => cnt[s.k] = 0); base().forEach(h => cnt[effStatus(h)]++);
   const box = $("chips"); box.innerHTML = "";
   ST.forEach(s => {
     const b = document.createElement("button");
@@ -336,15 +387,22 @@ function renderChips() {
     b.onclick = () => { filter.has(s.k) ? filter.delete(s.k) : filter.add(s.k); if (!filter.size) ST.forEach(t => filter.add(t.k)); renderAll(); };
     box.appendChild(b);
   });
-  const tot = shown().length || 1;
-  $("progress").innerHTML = shown().length ? ST.map(s => `<i style="width:${cnt[s.k] / tot * 100}%;background:${s.bg}"></i>`).join("") : "";
+  const tot = base().length || 1;
+  $("progress").innerHTML = base().length ? ST.map(s => `<i style="width:${cnt[s.k] / tot * 100}%;background:${s.bg}"></i>`).join("") : "";
 }
 function renderList() {
   const L_ = $("list"); L_.innerHTML = "";
   const order = canPost() && !isPast()
     ? { received: 0, todo: 1, absent: 2, done: 3, refused: 4, ng: 5 }   // 夜9時以降は貼りに行く家を上に
     : { todo: 0, absent: 1, received: 2, done: 3, refused: 4, ng: 5 };
-  const arr = visible().sort((a, b) => order[effStatus(a)] - order[effStatus(b)] || (a.name || "").localeCompare(b.name || "", "ja"));
+  const byName = (a, b) => (a.name || "").localeCompare(b.name || "", "ja", { numeric: true });
+  const near = sortBy === "near" && myLoc;
+  const dist = h => map.distance(myLoc, [h.lat, h.lng]);
+  const arr = visible().sort(
+    sortBy === "name" ? byName :
+    near ? (a, b) => dist(a) - dist(b) :
+    (a, b) => order[effStatus(a)] - order[effStatus(b)] || byName(a, b));
+  if (sortBy === "near" && !myLoc) locateMe(false);
   if (!arr.length) {
     L_.innerHTML = `<div class="none">${!loaded ? "読み込み中…" : shown().length ? "この条件の家はありません" : "まだ家が登録されていません。<br>地図で「＋ 家を追加」から登録してください。"}</div>`;
     return;
@@ -353,7 +411,7 @@ function renderList() {
     const s = stOf(effStatus(h)), r = rec(h), b = document.createElement("button");
     const sub = [h.memo, r && r.note].filter(Boolean).join("／");
     b.className = "row"; b.style.setProperty("--c", s.c); b.style.setProperty("--bgc", s.bg);
-    b.innerHTML = `<span class="dot"></span><span class="nm">${esc(h.name || "（名前なし）")}${h.photoCount ? " 📷" : ""}${sub ? `<small>${esc(sub)}</small>` : ""}</span><span class="st">${s.label}</span>`;
+    b.innerHTML = `<span class="dot"></span><span class="nm">${esc(h.name || "（名前なし）")}${h.group ? `<em class="gtag">${esc(h.group)}</em>` : ""}${sub ? `<small>${esc(sub)}</small>` : ""}</span><span class="st">${s.label}${near ? `<small>${distTxt(dist(h))}</small>` : ""}</span>`;
     b.onclick = () => { setView("map"); map.setView([h.lat, h.lng], Math.max(map.getZoom(), 18)); openSheet(h.id); };
     L_.appendChild(b);
   });
@@ -369,7 +427,7 @@ function renderYear() {
   $("addBtn").hidden = isPast();
   $("adminBtn").classList.toggle("is-admin", isAdmin());
 }
-function renderAll() { renderYear(); renderChips(); renderPins(); renderList(); if (selId) fillSheet(); if (!$("admin").hidden) renderAdmin(); }
+function renderAll() { renderYear(); renderFilters(); renderChips(); renderPins(); renderList(); if (selId) fillSheet(); if (!$("admin").hidden) renderAdmin(); }
 $("yearSel").onchange = () => { viewYear = +$("yearSel").value; if (viewYear === curYear()) viewYear = null; renderAll(); };
 $("backToNow").onclick = () => { viewYear = null; renderAll(); };
 
@@ -399,11 +457,12 @@ function closeSheet() { saveText(); selId = null; $("sheet").hidden = true; setP
 // 収まっているときはタップか上にスライドで元に戻る。
 const sheetEl = $("sheet"), shTop = $("shTop");
 let sheetDrag = null, peek = false;
-const peekOffset = () => Math.max(0, sheetEl.offsetHeight - shTop.offsetHeight - 10);
+const hgt = el => el.getBoundingClientRect().height; // 文字を大きくしているときも見た目の高さで計算する
+const peekOffset = () => Math.max(0, hgt(sheetEl) - hgt(shTop) - 10);
 function setPeek(on) {
   peek = on; sheetEl.classList.toggle("peek", on);
   sheetEl.style.transform = on ? `translateY(${peekOffset()}px)` : "";
-  if (on) { const h = cur(); if (h) map.panInside([h.lat, h.lng], { paddingTopLeft: [20, 40], paddingBottomRight: [20, shTop.offsetHeight + 50] }); }
+  if (on) { const h = cur(); if (h) map.panInside([h.lat, h.lng], { paddingTopLeft: [20, 40], paddingBottomRight: [20, hgt(shTop) + 50] }); }
 }
 shTop.addEventListener("pointerdown", e => {
   if (e.target.closest("button")) return;
@@ -417,7 +476,7 @@ addEventListener("pointermove", e => {
     sheetDrag.moved = true; sheetEl.classList.add("dragging");
     if (document.activeElement === $("fName")) $("fName").blur();
   }
-  sheetDrag.y = Math.max(0, Math.min(sheetEl.offsetHeight, sheetDrag.base + dy)); // 収まる位置より下まで引ける（引き切ると閉じる）
+  sheetDrag.y = Math.max(0, Math.min(hgt(sheetEl), sheetDrag.base + dy)); // 収まる位置より下まで引ける（引き切ると閉じる）
   sheetEl.style.transform = `translateY(${sheetDrag.y}px)`;
 });
 function endSheetDrag(e) {
@@ -425,8 +484,8 @@ function endSheetDrag(e) {
   const d = sheetDrag; sheetDrag = null; sheetEl.classList.remove("dragging");
   if (!d.moved) { if (peek) setPeek(false); return; }
   // 収まる位置よりさらに下まで引き下げたら閉じる
-  if (d.y > peekOffset() + Math.min(60, shTop.offsetHeight * 0.5)) {
-    sheetEl.style.transform = `translateY(${sheetEl.offsetHeight}px)`;
+  if (d.y > peekOffset() + Math.min(60, hgt(shTop) * 0.5)) {
+    sheetEl.style.transform = `translateY(${hgt(sheetEl)}px)`;
     setTimeout(closeSheet, 200);
     return;
   }
@@ -441,6 +500,7 @@ function fillSheet(force) {
   const r = rec(h), past = isPast();
   if (force || document.activeElement !== $("fName")) $("fName").value = h.name || "";
   if (force || document.activeElement !== $("fMemo")) $("fMemo").value = h.memo || "";
+  if (force || document.activeElement !== $("fGroup")) $("fGroup").value = h.group || "";
   if (force || document.activeElement !== $("fNote")) $("fNote").value = (r && r.note) || "";
   $("fNoteLabel").textContent = `${vy()}年のメモ`;
   $("fNote").disabled = past;
@@ -474,16 +534,36 @@ function setStatus(k) {
   const h = cur(); if (!h || !store || isPast()) return;
   if (effStatus(h) === k && rec(h)) return;
   const y = curYear(), now = Date.now();
+  const prev = h.years[y] ? { ...h.years[y] } : null; // 「元に戻す」用に変更前を覚えておく
   h.years[y] = { ...(h.years[y] || {}), status: k, updatedAt: now, updatedBy: myName };
   renderAll();
   store.update(h.id, { [`years.${y}.status`]: k, [`years.${y}.updatedAt`]: now, [`years.${y}.updatedBy`]: myName, updatedAt: now, updatedBy: myName }).catch(() => {});
-  toast(`${h.name || "この家"}を「${stOf(k).label}」にしました`);
+  showUndo(`${h.name || "この家"}を「${stOf(k).label}」にしました`, () => {
+    const hh = houses.find(x => x.id === h.id); if (!hh) return;
+    const t = Date.now();
+    if (prev && prev.status) {
+      hh.years[y] = { ...prev };
+      store.update(h.id, { [`years.${y}.status`]: prev.status, [`years.${y}.updatedAt`]: prev.updatedAt || t, [`years.${y}.updatedBy`]: prev.updatedBy || myName, updatedAt: t, updatedBy: myName }).catch(() => {});
+    } else {
+      if (hh.years[y]) { delete hh.years[y].status; if (!Object.keys(hh.years[y]).some(k2 => k2 === "note")) delete hh.years[y]; }
+      store.update(h.id, { [`years.${y}.status`]: DEL, updatedAt: t, updatedBy: myName }).catch(() => {});
+    }
+    renderAll(); toast("元に戻しました");
+  });
 }
+// 状態を変えたあと、6秒間「元に戻す」ボタンを出す
+let undoT, undoFn = null;
+function showUndo(text, fn) {
+  undoFn = fn; $("undoText").textContent = text; $("undo").hidden = false; $("toast").hidden = true;
+  clearTimeout(undoT); undoT = setTimeout(() => { $("undo").hidden = true; undoFn = null; }, 6000);
+}
+$("undoBtn").onclick = () => { const f = undoFn; undoFn = null; $("undo").hidden = true; clearTimeout(undoT); if (f) f(); };
 function saveText() {
   const h = cur(); if (!h || !store) return;
-  const name = $("fName").value.trim(), memo = $("fMemo").value.trim(), note = $("fNote").value.trim();
+  const name = $("fName").value.trim(), memo = $("fMemo").value.trim(), note = $("fNote").value.trim(), group = $("fGroup").value.trim();
   const patch = {}, now = Date.now();
   if (name !== (h.name || "")) { patch.name = name; h.name = name; }
+  if (group !== (h.group || "")) { patch.group = group; h.group = group; }
   if (memo !== (h.memo || "")) { patch.memo = memo; h.memo = memo; }
   if (!isPast()) {
     const y = curYear(), r = rec(h, y);
@@ -497,7 +577,7 @@ function saveText() {
   renderAll();
   store.update(h.id, patch).catch(() => {});
 }
-["fName", "fMemo", "fNote"].forEach(id => $(id).addEventListener("change", saveText));
+["fName", "fMemo", "fNote", "fGroup"].forEach(id => $(id).addEventListener("change", saveText));
 $("closeBtn").onclick = closeSheet;
 setInterval(() => { renderChips(); renderList(); }, 60 * 1000); // 9時になったら表示を切り替える
 
@@ -671,7 +751,7 @@ function renderAdmin() {
   };
   const lo = $("aLogout"); if (lo) lo.onclick = async () => { try { if (sharing) store.removeMember(); await store.signOutAdmin(); } catch (e) { console.error(e); } renderAll(); };
 }
-$("adminBtn").onclick = () => { $("yearConfirm").hidden = true; $("admin").hidden = false; renderAdmin(); };
+$("adminBtn").onclick = () => { $("yearConfirm").hidden = true; $("setName").value = myName; $("admin").hidden = false; renderAdmin(); };
 $("adminClose").onclick = () => { $("admin").hidden = true; };
 let pendingYear = null;
 function askYear(y, msg) { pendingYear = y; $("yearMsg").textContent = msg; $("yearConfirm").hidden = false; }
@@ -705,12 +785,48 @@ $("aHidden").onclick = e => {
   store.update(id, { hidden: false, updatedAt: Date.now(), updatedBy: myName }).then(() => toast("元に戻しました")).catch(() => { h.hidden = true; renderAll(); });
 };
 
+/* ============ 設定（文字の大きさ・名前） ============ */
+function applyFs(v) {
+  const z = [1, 1.15, 1.3].includes(+v) ? +v : 1;
+  document.documentElement.style.setProperty("--z", z);
+  $("fsSeg").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.fs === z));
+  if (peek) setPeek(true);
+}
+applyFs(ls.get("niwakadome:fs") || 1);
+$("fsSeg").onclick = e => { const v = e.target.dataset && e.target.dataset.fs; if (!v) return; ls.set("niwakadome:fs", v); applyFs(v); };
+$("setNameSave").onclick = () => {
+  const n = $("setName").value.trim(); if (!n) { toast("名前を入れてください"); return; }
+  myName = n; ls.set("niwakadome:name", n); toast("名前を変更しました");
+};
+
+/* ============ 使い方 ============ */
+$("legend").innerHTML = ST.map(s => `<li><span class="lg-pin" style="--c:${s.c};--bgc:${s.bg}"><i></i></span>${s.label}</li>`).join("")
+  + `<li><span class="lg-mem"></span>位置を共有しているメンバー</li>`;
+$("helpBtn").onclick = () => { $("admin").hidden = true; $("help").hidden = false; };
+$("helpClose").onclick = () => { $("help").hidden = true; ls.set("niwakadome:helpSeen", "1"); };
+
+/* ============ バックアップ（管理者） ============ */
+$("aBackup").onclick = () => {
+  const ys = [...new Set(houses.flatMap(h => Object.keys(h.years || {})))].map(Number).sort((a, b) => a - b);
+  const head = ["名前", "緯度", "経度", "班", "家のメモ", "写真の枚数", "非表示", ...ys.flatMap(y => [`${y}年の状態`, `${y}年のメモ`])];
+  const cell = v => { const t = String(v ?? ""); return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+  const rows = houses.slice().sort((a, b) => (a.name || "").localeCompare(b.name || "", "ja", { numeric: true })).map(h => [
+    h.name || "", h.lat.toFixed(6), h.lng.toFixed(6), h.group || "", h.memo || "", h.photoCount || 0, h.hidden ? "非表示" : "",
+    ...ys.flatMap(y => { const r = (h.years || {})[y] || {}; return [r.status ? stOf(r.status).label : "", r.note || ""]; })]);
+  const csv = "\ufeff" + [head, ...rows].map(r => r.map(cell).join(",")).join("\r\n"); // Excel で文字化けしないよう BOM を付ける
+  const d = new Date(), name = `俄留マップ_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}.csv`;
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  toast(`${houses.length}軒を「${name}」に保存しました`);
+};
+
 /* ============ 表示切替・共有 ============ */
 function setView(v) {
   view = v;
   $("tabMap").setAttribute("aria-pressed", v === "map");
   $("tabList").setAttribute("aria-pressed", v === "list");
-  $("list").hidden = v !== "list";
+  $("listWrap").hidden = v !== "list";
+  if (v === "list" && sortBy === "near") locateMe(false);
   $("locBtn").hidden = $("layerBtn").hidden = v !== "map";
   if (v === "list") setMode(null);
   else setTimeout(() => map.invalidateSize(), 0);
@@ -740,7 +856,7 @@ $("stuckReload").onclick = () => location.reload();
 addEventListener("offline", () => setSync("offline"));
 
 let tt;
-function toast(m) { const t = $("toast"); t.textContent = m; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, 2400); }
+function toast(m) { const t = $("toast"); t.textContent = m; t.hidden = false; $("undo").hidden = true; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, 2400); }
 
 /* ============ はじめの設定（名前・チーム） ============ */
 function newCode() {
@@ -800,6 +916,7 @@ async function begin(code, isNew) {
   store.subscribeMembers(list => { members = list; renderMembers(); });
   if (ls.get("niwakadome:sharing") === "1") setSharing(true);
   if (isNew) setTimeout(() => toast("チームを作りました。右上の「招待」からリンクを送れます"), 400);
+  if (!ls.get("niwakadome:helpSeen")) $("help").hidden = false; // 初めて開いた人には使い方を出す
 }
 
 renderAll();
