@@ -451,7 +451,7 @@ function openSheet(id) {
   $("hideConfirm").hidden = true;
   fillSheet(true); renderPins();
 }
-function closeSheet() { saveText(); selId = null; $("sheet").hidden = true; setPeek(false); setMode(null); renderPins(); }
+function closeSheet() { saveText(); $("detail").hidden = true; selId = null; $("sheet").hidden = true; setPeek(false); setMode(null); renderPins(); }
 
 // 上の部分（名前のあたり）を下にスライドすると、名前だけ残して下に収まり、地図が見える。
 // 収まっているときはタップか上にスライドで元に戻る。
@@ -526,6 +526,10 @@ function fillSheet(force) {
     : `<li class="empty">まだ記録はありません</li>`;
   $("fMeta").textContent = r && r.updatedAt ? `${fmt(r.updatedAt)}${r.updatedBy ? "・" + r.updatedBy : ""}${h._pending ? "（未送信）" : ""}` : "";
   $("hideBtn").hidden = !(allowHide() || isAdmin());
+  // 詳細（班・年ごとのメモ）は別ページで入力。家の画面には要約だけ出す
+  const sum = [h.group || "班なし", (r && r.note) ? `${vy()}年：${r.note}` : `${vy()}年のメモなし`];
+  $("fDetailSum").textContent = sum.join("　");
+  $("dtTitle").textContent = `${h.name || "（名前なし）"}の詳細`;
   // ピンの座標から Google マップを開くリンク（スマホでは Google マップのアプリが開く）
   const ll = `${h.lat.toFixed(6)},${h.lng.toFixed(6)}`;
   $("fGmap").href = `https://www.google.com/maps/search/?api=1&query=${ll}`;
@@ -579,6 +583,8 @@ function saveText() {
 }
 ["fName", "fMemo", "fNote", "fGroup"].forEach(id => $(id).addEventListener("change", saveText));
 $("closeBtn").onclick = closeSheet;
+$("detailOpen").onclick = () => { saveText(); $("detail").hidden = false; };
+$("detailBack").onclick = () => { saveText(); $("detail").hidden = true; fillSheet(); };
 setInterval(() => { renderChips(); renderList(); }, 60 * 1000); // 9時になったら表示を切り替える
 
 // 「削除」は非表示にするだけ。記録は残り、管理者が元に戻せる
