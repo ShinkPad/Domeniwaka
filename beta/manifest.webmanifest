@@ -1,0 +1,14 @@
+{
+  "name": "俄留マップ（試作版）",
+  "short_name": "俄留マップ試作",
+  "description": "久世祭りのお花回りで、俄留を貼った家をチームで共有する地図",
+  "lang": "ja",
+  "display": "standalone",
+  "scope": "./",
+  "background_color": "#1f3a5f",
+  "theme_color": "#1f3a5f",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
