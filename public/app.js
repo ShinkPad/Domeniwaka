@@ -469,7 +469,6 @@ function fillSheet(force) {
   // ピンの座標から Google マップを開くリンク（スマホでは Google マップのアプリが開く）
   const ll = `${h.lat.toFixed(6)},${h.lng.toFixed(6)}`;
   $("fGmap").href = `https://www.google.com/maps/search/?api=1&query=${ll}`;
-  $("fGdir").href = `https://www.google.com/maps/dir/?api=1&destination=${ll}`;
 }
 function setStatus(k) {
   const h = cur(); if (!h || !store || isPast()) return;
